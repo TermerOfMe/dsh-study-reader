@@ -1,0 +1,1 @@
+(()=>{const d=window.__dsrDiag;d.testStart=performance.now();d.baseline={long:d.longTasks.length,frame:d.frames.length,loaf:d.loafs.length,fetch:d.fetches.length,stages:d.stages.length,rect:d.rectCount,rectMs:d.rectMs};document.querySelector('button[aria-label="下一页"]').click();copy('DSR_DIAG'+JSON.stringify({next:true}))})()

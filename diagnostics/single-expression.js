@@ -1,0 +1,1 @@
+(()=>{const d=window.__dsrDiag;d.testStart=performance.now();d.baseline={long:d.longTasks.length,frame:d.frames.length,loaf:d.loafs.length,fetch:d.fetches.length,stages:d.stages.length,rect:d.rectCount,rectMs:d.rectMs};[...document.querySelectorAll('.dsr-pdf-mode button')].find(b=>b.textContent==='单页').click();copy('DSR_DIAG'+JSON.stringify({mode:'single',started:true}))})()
