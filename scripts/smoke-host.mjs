@@ -1,0 +1,268 @@
+/**
+ * End-to-end smoke check for the Host half and the context inspector
+ * (not shipped). Creates a tiny PDF, drives /open, /extract, /ask and
+ * /translate through the registered route, and reads the recorded context.
+ *
+ * Run with: node scripts/smoke-host.mjs
+ */
+import { createServer } from 'node:http'
+import { installStudyHost } from '../lib/app.js'
+
+function makePdf() {
+  const page = (contentId, text) => `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents ${contentId} 0 R >>`
+  const stream = text => `<< /Length ${Buffer.byteLength(text)} >>\nstream\n${text}\nendstream`
+  const contents = 'BT /F1 18 Tf 72 720 Td (Hello world from page one.) Tj ET'
+  const contents2 = 'BT /F1 18 Tf 72 720 Td (Second page text.) Tj ET'
+  const objects = [
+    null,
+    '<< /Type /Catalog /Pages 2 0 R /Outlines 8 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>',
+    page(4, contents),
+    stream(contents),
+    page(6, contents2),
+    stream(contents2),
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Outlines /First 9 0 R /Last 10 0 R /Count 2 >>',
+    '<< /Title (Chapter One) /Parent 8 0 R /Dest [3 0 R /Fit] /Next 10 0 R >>',
+    '<< /Title (Chapter Two) /Parent 8 0 R /Prev 9 0 R /Dest [5 0 R /Fit] >>',
+  ]
+  const header = '%PDF-1.4\n'
+  let body = ''
+  const offsets = [0]
+  for (let index = 1; index < objects.length; index += 1) {
+    offsets[index] = header.length + body.length
+    body += `${index} 0 obj\n${objects[index]}\nendobj\n`
+  }
+  const xrefOffset = header.length + body.length
+  let xref = `xref\n0 ${objects.length}\n0000000000 65535 f \n`
+  for (let index = 1; index < objects.length; index += 1) {
+    xref += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`
+  }
+  const trailer = `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+  return Buffer.from(header + body + xref + trailer, 'latin1')
+}
+
+const pdf = makePdf()
+let attachmentId = 0
+
+const fs = {
+  async resolve(path) {
+    return { targetKey: `test:${path}`, displayPath: `C:\\tmp\\${path}` }
+  },
+  async stat() {
+    return { type: 'file', size: pdf.byteLength, version: 'v1' }
+  },
+  async readBytes() {
+    return pdf
+  },
+  async readByteRange(_target, range) {
+    return pdf.subarray(range.offset, range.offset + range.length)
+  },
+  async listDir() {
+    return []
+  },
+}
+
+function asyncChunks(chunks) {
+  return (async function* () {
+    for (const chunk of chunks) yield chunk
+  })()
+}
+
+const llm = {
+  async resolveModelInfo() {
+    return { inputModalities: ['image'] }
+  },
+  async listModels() {
+    return []
+  },
+  stream(options) {
+    if (typeof options.system === 'string' && options.system.includes('阅读助手')) {
+      return asyncChunks([
+        { type: 'text-delta', text: '{"pages":[]}' },
+        { type: 'finish', reason: { kind: 'stop' } },
+      ])
+    }
+    return asyncChunks([
+      { type: 'reasoning-delta', text: '先确认这一段在上下文中的位置。' },
+      { type: 'text-delta', text: '这是基于当前页面的回答。' },
+      { type: 'usage', usage: { inputTokens: 120, outputTokens: 16, reasoningTokens: 9 } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+  },
+}
+
+let registered
+const ctx = {
+  webServer: {
+    register(route) {
+      registered = route
+      return () => { registered = undefined }
+    },
+  },
+  get(name) {
+    if (name === 'fs') return fs
+    if (name === 'llm') return llm
+    if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'fake', model: 'fake-model' }) }
+    if (name === 'attachments') {
+      return {
+        imageLimits: { maxImagesPerMessage: 4 },
+        async saveImage({ data, mediaType, name }) {
+          attachmentId += 1
+          return {
+            attachmentId: `a${attachmentId}`,
+            mediaType,
+            bytes: data.length,
+            width: 1200,
+            height: 1600,
+            name,
+          }
+        },
+      }
+    }
+    if (name === 'webServer') {
+      return {
+        register(route) {
+          registered = route
+          return () => { registered = undefined }
+        },
+      }
+    }
+    if (name === 'workingDirectory') return { defaultDirectory: process.cwd() }
+    if (name === 'workspaceRegistry') return { list: () => [] }
+    return undefined
+  },
+  effect(fn) {
+    const dispose = fn()
+    return () => { if (typeof dispose === 'function') dispose() }
+  },
+}
+
+const failures = []
+const expect = (condition, message) => {
+  if (!condition) failures.push(message)
+}
+
+const host = installStudyHost(ctx, { maxDocumentBytes: 0, visionMaxPages: 2 })
+const server = createServer((req, res) => {
+  if (registered === undefined) {
+    res.writeHead(500)
+    res.end('no route')
+    return
+  }
+  registered.handler(req, res).catch(error => {
+    console.error(error)
+    if (!res.headersSent) res.writeHead(500)
+    res.end(String(error))
+  })
+})
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+const base = `http://127.0.0.1:${server.address().port}/api/dsh-study`
+const post = async (path, payload) => {
+  const response = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-dsh-study': '1' },
+    body: JSON.stringify(payload),
+  })
+  const text = await response.text()
+  return { status: response.status, text }
+}
+const getJson = async path => {
+  const response = await fetch(`${base}${path}`)
+  return { status: response.status, body: await response.json().catch(() => undefined) }
+}
+
+try {
+  const opened = await post('/open', { path: 'sample.pdf' })
+  expect(opened.status === 200, `open failed: ${opened.text}`)
+  const doc = JSON.parse(opened.text).doc
+  expect(typeof doc.id === 'string' && doc.id !== '', 'open should return a document id')
+
+  const extracted = await post('/extract', { docId: doc.id })
+  expect(extracted.status === 200, `extract failed: ${extracted.text}`)
+  const fullDoc = JSON.parse(extracted.text).doc
+  expect(Array.isArray(fullDoc.blocks) && fullDoc.blocks.length > 0, 'extract should produce text blocks')
+  expect(Array.isArray(fullDoc.toc) && fullDoc.toc.length === 2, `extract should read the outline: ${JSON.stringify(fullDoc.toc)}`)
+
+  const asked = await post('/ask', {
+    docId: doc.id,
+    question: 'What does this page say?',
+    mode: 'learn',
+    blockId: Math.min(1, fullDoc.blocks.length - 1),
+  })
+  expect(asked.status === 200, `ask failed: ${asked.text}`)
+  const frames = asked.text.trim().split('\n').map(line => JSON.parse(line))
+  const meta = frames.find(frame => frame.type === 'meta')
+  expect(meta !== undefined && typeof meta.contextId === 'string', 'ask meta should carry a context id')
+  expect(frames.some(frame => frame.type === 'reasoning'), 'ask should stream reasoning frames')
+  expect(frames.some(frame => frame.type === 'delta' && frame.text.includes('回答')), 'ask should stream answer text')
+  expect(frames.some(frame => frame.type === 'done'), 'ask should finish')
+
+  if (meta !== undefined) {
+    const detail = await getJson(`/context?id=${encodeURIComponent(doc.id)}&entry=${encodeURIComponent(meta.contextId)}`)
+    expect(detail.status === 200, `context failed: ${JSON.stringify(detail.body)}`)
+    const entry = detail.body?.entry
+    expect(entry !== undefined, 'context should return an entry')
+    expect(entry.prompt.includes('What does this page say?'), 'recorded prompt should contain the question')
+    expect(entry.reasoning.includes('先确认'), 'recorded reasoning should be present')
+    expect(Array.isArray(entry.images) && entry.images.length > 0, 'recorded entry should include page images')
+    expect(entry.stats.estimatedTokens > 0, 'recorded entry should estimate tokens')
+
+    if (entry.images.length > 0) {
+      const image = await fetch(`${base}/context-image?id=${encodeURIComponent(doc.id)}&entry=${encodeURIComponent(meta.contextId)}&i=0`)
+      expect(image.status === 200, `context image failed: ${image.status}`)
+      expect((image.headers.get('content-type') ?? '').startsWith('image/'), 'context image should be an image')
+      expect((await image.arrayBuffer()).byteLength > 0, 'context image should not be empty')
+
+      const thumbnail = await fetch(`${base}/context-image?id=${encodeURIComponent(doc.id)}&entry=${encodeURIComponent(meta.contextId)}&i=0&w=420`)
+      expect(thumbnail.status === 200, `context thumbnail failed: ${thumbnail.status}`)
+      expect(Number(thumbnail.headers.get('x-page-width')) <= 420, 'context thumbnail should honor the w parameter')
+      await thumbnail.arrayBuffer()
+    }
+  }
+
+  const translated = await post('/translate', {
+    docId: doc.id,
+    selection: 'Hello world from page one.',
+    blockId: 1,
+    targetLanguage: 'zh-CN',
+  })
+  expect(translated.status === 200, `translate failed: ${translated.text}`)
+  const translateFrames = translated.text.trim().split('\n').map(line => JSON.parse(line))
+  const translateMeta = translateFrames.find(frame => frame.type === 'meta')
+  expect(translateMeta !== undefined && typeof translateMeta.contextId === 'string', 'translate meta should carry a context id')
+  expect(translateFrames.some(frame => frame.type === 'reasoning'), 'translate should stream reasoning frames')
+  expect(translateFrames.some(frame => frame.type === 'done'), 'translate should finish')
+
+  const missing = await getJson(`/context?id=${encodeURIComponent(doc.id)}&entry=missing`)
+  expect(missing.status === 404, 'unknown context should return 404')
+
+  const overview = await post('/ask', {
+    docId: doc.id,
+    question: 'Please summarize the book.',
+    overview: true,
+  })
+  expect(overview.status === 200, `overview failed: ${overview.text}`)
+  const overviewFrames = overview.text.trim().split('\n').map(line => JSON.parse(line))
+  const overviewMeta = overviewFrames.find(frame => frame.type === 'meta')
+  expect(overviewMeta !== undefined && typeof overviewMeta.contextId === 'string', 'overview meta should carry a context id')
+  if (overviewMeta !== undefined && typeof overviewMeta.contextId === 'string') {
+    const detail = await getJson(`/context?id=${encodeURIComponent(doc.id)}&entry=${encodeURIComponent(overviewMeta.contextId)}`)
+    const entry = detail.body?.entry
+    expect(entry !== undefined, 'overview context should return an entry')
+    expect(entry.mode === 'overview', 'overview context mode should be overview')
+    expect(entry.prompt.includes('# 章节资料'), 'overview context should contain the batch prompt')
+    expect(entry.notes.overviewBatchCount === 1, 'overview should record the batch count')
+    expect(Array.isArray(entry.images) && entry.images.length === 2, 'overview should attach both chapter pages')
+  }
+} finally {
+  server.close()
+  host.dispose()
+}
+
+if (failures.length > 0) {
+  console.error('smoke failed:')
+  for (const failure of failures) console.error(` - ${failure}`)
+  process.exit(1)
+}
+console.log('ok: host routes, reasoning frames, context record and context image work')

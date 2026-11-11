@@ -1,0 +1,47 @@
+{
+  "name": "@local/dsh-study-reader",
+  "version": "1.12.3",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Read PDF, Word and PowerPoint documents in their original layout inside DSH; select text for context-aware translation, or discuss it in Learning and Re-reading modes.",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "version:check": "node scripts/check-version.mjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib/**/*",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
+    }
+  },
+  "dependencies": {
+    "@hyzyla/pdfium": "3.0.0",
+    "@napi-rs/canvas": "1.1.0",
+    "pdfjs-dist": "6.3.289"
+  }
+}
