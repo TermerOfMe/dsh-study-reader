@@ -13,6 +13,22 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
 
+## [1.13.0] - 2026-11-11
+
+### Changed
+- PDF 原貌不再把整份文件下载到浏览器再交给 PDF.js：`/preview` 的
+  Range 路由直接按字节范围读磁盘，PDF.js 只取 xref、页面字典和文字流。
+  本机 164 MB / 189 页 PDF 的首屏不再经历一次完整文件复制，渲染进程
+  也不再长期持有这份 ArrayBuffer。
+- 连续页的相邻页预取改为分级：当前页立即开始，前后各 1 页在 120 ms
+  后开始，再远一页仍等 600 ms。翻到下一页时页面图通常已经就绪，同时
+  不会一次启动五个 PDFium 渲染。
+- PDF 阅读区预留滚动条位置（`overflow-y: scroll` +
+  `scrollbar-gutter: stable`），并把页面宽度量化到 16 px，减少滚动条
+  出现/消失时宽度来回变化造成的重复页面请求和文字层重建。
+- 目录还在提取时，右上角目录按钮先以禁用态出现（提示“目录加载中…”），
+  提取完成后启用；没有目录的文档在提取结束后仍隐藏该按钮。
+
 ## [1.12.2] - 2026-11-10
 
 ### Changed

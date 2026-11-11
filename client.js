@@ -84,6 +84,7 @@ globalThis.__ModuleLoader__.load({
         modelMissing: '当前没有可用的默认模型，问答和翻译暂不可用。',
         settings: '设置',
         toc: '目录',
+        tocLoading: '目录加载中…',
         noToc: '这篇文档没有标题目录',
         tocExpand: '展开本章',
         tocCollapse: '收起本章',
@@ -302,6 +303,7 @@ globalThis.__ModuleLoader__.load({
         modelMissing: 'No default model is available, so Q&A and translation are disabled.',
         settings: 'Settings',
         toc: 'Contents',
+        tocLoading: 'Loading contents…',
         noToc: 'This document has no heading outline',
         tocExpand: 'Expand chapter',
         tocCollapse: 'Collapse chapter',
@@ -806,7 +808,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-pdf-page-input{width:42px;height:25px;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:10.5px;text-align:center;outline:0;padding:0 2px}
 .dsr-pdf-page-input:focus{border-color:var(--dsw-alias-brand-primary)}
 .dsr-pdf-count{font-variant-numeric:tabular-nums;white-space:nowrap;padding:0 3px}
-.dsr-pdf-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:20px 16px 34px;background:var(--dsw-alias-bg-layer-2)}
+.dsr-pdf-scroll{flex:1;min-height:0;overflow:auto;overflow-y:scroll;overscroll-behavior:contain;padding:20px 16px 34px;background:var(--dsw-alias-bg-layer-2);scrollbar-gutter:stable}
 .dsr-pdf-scroll.dsr-selecting-region{cursor:crosshair;user-select:none;touch-action:none}
 .dsr-pdf-scroll.dsr-selecting-region .dsr-pdf-page,.dsr-pdf-scroll.dsr-selecting-region .dsr-pdf-textLayer{cursor:crosshair;user-select:none}
 .dsr-region-box{position:fixed;z-index:1300;border:1.5px solid var(--dsw-alias-brand-primary);border-radius:2px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 14%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-brand-primary) 35%,transparent) inset;pointer-events:none}
@@ -2502,6 +2504,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     function TopBar({ doc, t, chatOpen, setChatOpen, onOpen, onToc, onBack, progress, activePage, pages, onSearch, onDiagnostics }) {
       const searchable = doc !== null && ((doc.blocks?.length ?? 0) > 0 || (doc.toc?.length ?? 0) > 0)
+      const tocAvailable = (doc?.toc?.length ?? 0) > 0
+      const tocPending = doc !== null && doc.canPreview && !tocAvailable && doc.extraction === 'pending'
       return h('header', { className: 'dsr-header' },
         h('div', { className: 'dsr-brand' },
           h('div', { className: 'dsr-brand-mark' }, h(Icon, { name: 'book', size: 18 })),
@@ -2536,8 +2540,15 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               onClick: onSearch,
             }, h(Icon, { name: 'search', size: 15 }))
             : null,
-          doc !== null && doc.canPreview && doc.toc?.length > 0
-            ? h('button', { type: 'button', className: 'dsr-icon-btn', title: t('toc'), 'aria-label': t('toc'), onClick: onToc }, h(Icon, { name: 'list', size: 15 }))
+          doc !== null && doc.canPreview && (tocAvailable || tocPending)
+            ? h('button', {
+              type: 'button',
+              className: 'dsr-icon-btn',
+              title: tocAvailable ? t('toc') : t('tocLoading'),
+              'aria-label': tocAvailable ? t('toc') : t('tocLoading'),
+              disabled: !tocAvailable,
+              onClick: onToc,
+            }, h(Icon, { name: 'list', size: 15 }))
             : null,
           doc !== null
             ? h('button', {
@@ -2835,7 +2846,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     // only rasterized while the IntersectionObserver marks them near the
     // viewport, so a long PDF does not allocate dozens of full-page canvases.
     const ContinuousPage = React.memo(function ContinuousPage({
-      pdfApi, doc, pageNumber, pageWidth, defaultHeight, active, current, registerPage, onEngine, t,
+      pdfApi, doc, pageNumber, pageWidth, defaultHeight, active, current, distance, registerPage, onEngine, t,
     }) {
       const hostRef = useRef(null)
       const canvasRef = useRef(null)
@@ -2851,6 +2862,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const startedRef = useRef(null)
       const currentRef = useRef(current)
       currentRef.current = current
+      const distanceRef = useRef(distance)
+      distanceRef.current = distance
       const docRef = useRef(doc)
       docRef.current = doc
       const [size, setSize] = useState(null)
@@ -2970,7 +2983,13 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         if (currentRef.current) {
           void run()
         } else {
-          timer = window.setTimeout(() => { void run() }, CONTINUOUS_NEIGHBOUR_DELAY)
+          // The page immediately before/after the reading position is the
+          // one a page turn needs next. Start it soon after the current page
+          // rather than making every neighbour wait the full delay; pages
+          // two away stay lazy so a normal page turn does not launch five
+          // PDFium renders at once.
+          const delay = Math.abs(distanceRef.current) <= 1 ? 120 : CONTINUOUS_NEIGHBOUR_DELAY
+          timer = window.setTimeout(() => { void run() }, delay)
           pendingTimerRef.current = timer
         }
         return () => {
@@ -3249,6 +3268,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             defaultHeight,
             active: activePages.has(number) || (number >= nearbyFrom && number <= nearbyTo),
             current: number === pageNumber,
+            distance: number - pageNumber,
             registerPage,
             onEngine,
             t,
@@ -3340,7 +3360,6 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       useEffect(() => {
         let cancelled = false
         let pdfDocument = null
-        let fetchController = null
         onSelectRef.current?.(null)
         setStatus('loading')
         setError('')
@@ -3371,25 +3390,23 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             }
             let loaded = null
             if (doc.extension === 'pdf') {
-              // PDFium renders the page canvas; PDF.js only supplies the text
-              // layer. Load the PDF once as data so PDF.js does not spend
-              // seconds walking huge tail ranges of scanned documents.
-              fetchController = new AbortController()
-              const response = await fetch(previewUrl, {
-                credentials: 'same-origin',
-                cache: 'no-store',
-                signal: fetchController.signal,
+              // Load the PDF by URL so PDF.js uses the host's byte-range
+              // endpoint. Large scanned PDFs are routinely hundreds of
+              // megabytes; downloading and copying the whole file into the
+              // renderer before the first page appears freezes the panel and
+              // doubles memory use. The host serves Range requests directly
+              // from disk, and disableAutoFetch keeps PDF.js from walking the
+              // whole file for text.
+              const task = pdfjs.getDocument({
+                ...common,
+                url: previewUrl,
+                disableAutoFetch: true,
+                rangeChunkSize: 1024 * 1024,
               })
-              if (!response.ok) {
-                const body = await response.json().catch(() => undefined)
-                throw new Error(body?.error?.message ?? `HTTP ${response.status}`)
-              }
-              const bytes = new Uint8Array(await response.arrayBuffer())
-              if (cancelled) return
-              const task = pdfjs.getDocument({ ...common, data: bytes })
               loadingTaskRef.current = task
               loaded = await task.promise
             } else {
+              // Converted Office files are already a small in-memory PDF.
               const task = pdfjs.getDocument({
                 ...common,
                 url: previewUrl,
@@ -3423,7 +3440,6 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         })()
         return () => {
           cancelled = true
-          try { fetchController?.abort() } catch { /* ignore */ }
           try { renderTaskRef.current?.cancel() } catch { /* ignore */ }
           try { textLayerApiRef.current?.cancel() } catch { /* ignore */ }
           try { loadingTaskRef.current?.destroy()?.catch?.(() => {}) } catch { /* ignore */ }
@@ -3438,14 +3454,20 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
       useEffect(() => {
         if (status !== 'ready') return undefined
-        const element = stageRef.current
+        const element = scrollRef.current
         if (element === null) return undefined
         const measure = () => {
-          const available = Math.max(260, element.clientWidth - 8)
+          // Measure the scroll container's border box, not the stage inside
+          // it. The stage loses 16 px when a vertical scrollbar appears, so
+          // measuring it re-rendered the current page at a new width (and
+          // re-requested every visible page image) right after first paint.
+          // The container width is stable; subtract both 16 px paddings and
+          // one scrollbar allowance, then quantize to 16 px.
+          const available = Math.max(260, element.getBoundingClientRect().width - 48)
           // Fit the page to the reading area. The cap only guards against
           // absurdly wide windows; it must stay high enough that ordinary
           // desktop panels render the page at full size.
-          const next = Math.min(1440, available)
+          const next = Math.floor(Math.min(1440, available) / 16) * 16
           // ResizeObserver also fires when the rendered page height changes.
           // Only treat a real width change as a re-render trigger.
           setWidth(previous => Math.abs(previous - next) < 8 ? previous : next)
@@ -3458,7 +3480,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         const observer = new ResizeObserver(measure)
         observer.observe(element)
         return () => observer.disconnect()
-      }, [status, mode])
+      }, [status, mode, scrollRef])
 
       useEffect(() => {
         if (status !== 'ready' || pdfApi === null || width <= 0 || mode !== 'single') return undefined
