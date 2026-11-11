@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-study-reader",
-  "version": "1.12.3",
+  "version": "1.12.2",
   "private": true,
   "type": "module",
   "license": "MIT",

@@ -492,7 +492,7 @@ body[data-ds-dark-theme] .dsr-root{color-scheme:dark}
 .dsr-root :where(button,input,textarea,select){font:inherit;color:inherit}
 .dsr-root ::selection{background:var(--dsw-alias-bg-document-selection,rgba(59,130,246,.38))}
 .dsr-root :focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-.dsr-header{flex:none;position:relative;display:flex;align-items:center;gap:18px;height:62px;padding:0 22px;border-bottom:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);z-index:8;contain:layout paint}
+.dsr-header{flex:none;position:relative;display:flex;align-items:center;gap:18px;height:62px;padding:0 22px;border-bottom:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);z-index:8}
 .dsr-brand{display:flex;align-items:center;gap:10px;flex:none;min-width:0}
 .dsr-brand-mark{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-bg-base));flex:none;box-shadow:0 4px 14px color-mix(in srgb,var(--dsw-alias-brand-primary) 25%,transparent)}
 .dsr-brand-text{display:flex;flex-direction:column;line-height:1.15;min-width:0}
@@ -515,7 +515,7 @@ body[data-ds-dark-theme] .dsr-root{color-scheme:dark}
 .dsr-btn-primary:hover{filter:brightness(.93);border-color:transparent}
 .dsr-btn-quiet{background:transparent;border-color:transparent;color:var(--dsw-alias-label-secondary)}
 .dsr-btn-quiet:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent);color:var(--dsw-alias-label-primary)}
-.dsr-icon-btn{appearance:none;width:31px;height:31px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;transition:none}
+.dsr-icon-btn{appearance:none;width:31px;height:31px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;transition:background .14s,color .14s}
 .dsr-icon-btn:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent);color:var(--dsw-alias-label-primary)}
 .dsr-icon-btn.is-active{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,transparent);color:var(--dsw-alias-brand-primary)}
 .dsr-icon-btn:disabled{opacity:.4;cursor:not-allowed}
@@ -524,7 +524,7 @@ body[data-ds-dark-theme] .dsr-root{color-scheme:dark}
 .dsr-seg-btn:hover{color:var(--dsw-alias-label-primary)}
 .dsr-seg-btn.on{background:var(--dsw-alias-button-ghost-active-fill,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);box-shadow:0 1px 3px color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent)}
 .dsr-body{flex:1;min-height:0;display:flex;position:relative}
-.dsr-reader-col{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;position:relative;background:var(--dsw-alias-bg-base);contain:layout paint}
+.dsr-reader-col{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;position:relative;background:var(--dsw-alias-bg-base)}
 .dsr-scroll{flex:1;min-height:0;overflow:auto;scroll-behavior:smooth;overscroll-behavior:contain;position:relative}
 .dsr-doc{max-width:860px;margin:0 auto;padding:34px 36px 140px}
 .dsr-page{position:relative;margin:0 0 26px;scroll-margin-top:22px}
@@ -806,7 +806,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-pdf-page-input{width:42px;height:25px;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:10.5px;text-align:center;outline:0;padding:0 2px}
 .dsr-pdf-page-input:focus{border-color:var(--dsw-alias-brand-primary)}
 .dsr-pdf-count{font-variant-numeric:tabular-nums;white-space:nowrap;padding:0 3px}
-.dsr-pdf-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:20px 16px 34px;background:var(--dsw-alias-bg-layer-2);contain:layout paint}
+.dsr-pdf-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:20px 16px 34px;background:var(--dsw-alias-bg-layer-2)}
 .dsr-pdf-scroll.dsr-selecting-region{cursor:crosshair;user-select:none;touch-action:none}
 .dsr-pdf-scroll.dsr-selecting-region .dsr-pdf-page,.dsr-pdf-scroll.dsr-selecting-region .dsr-pdf-textLayer{cursor:crosshair;user-select:none}
 .dsr-region-box{position:fixed;z-index:1300;border:1.5px solid var(--dsw-alias-brand-primary);border-radius:2px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 14%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-brand-primary) 35%,transparent) inset;pointer-events:none}
@@ -820,7 +820,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-pdf-page-block.is-current .dsr-pdf-page{box-shadow:0 10px 34px color-mix(in srgb,var(--dsw-alias-label-primary) 22%,transparent)}
 .dsr-pdf-page-placeholder{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:20px;background:#fff;color:#3f4652;font-size:10.5px;line-height:1.5;text-align:center;pointer-events:none}
 .dsr-pdf-page-placeholder .dsr-spinner{border-color:rgba(15,17,21,.16);border-top-color:#0f1115}
-.dsr-pdf-page{position:relative;flex:none;background:#fff;color:#3f4652;box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 16%,transparent);overflow:hidden;color-scheme:light;contain:layout paint}
+.dsr-pdf-page{position:relative;flex:none;background:#fff;color:#3f4652;box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 16%,transparent);overflow:hidden;color-scheme:light}
 .dsr-pdf-canvas{display:block;position:absolute;inset:0;width:100%;height:100%}
 .dsr-pdf-textLayer{position:absolute;inset:0;overflow:clip;opacity:1;line-height:1;text-align:initial;letter-spacing:normal;word-spacing:normal;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;caret-color:CanvasText;z-index:2;--total-scale-factor:1;--min-font-size:1;--text-scale-factor:calc(var(--total-scale-factor) * var(--min-font-size));--min-font-size-inv:calc(1 / var(--min-font-size))}
 .dsr-pdf-textLayer span,.dsr-pdf-textLayer br{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%;user-select:text}
@@ -3152,16 +3152,15 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         let frame = 0
         const update = () => {
           frame = 0
-          const containerRect = container.getBoundingClientRect()
-          const line = containerRect.top + 36
-          // Hit-test the reading line instead of walking every page and
-          // calling getBoundingClientRect() dozens of times per scroll frame.
-          // The old scan started at page 1, so reading page N forced N layout
-          // reads on every frame.
-          const probe = document.elementFromPoint(containerRect.left + containerRect.width / 2, line)
-          const host = probe !== null && typeof probe.closest === 'function' ? probe.closest('.dsr-pdf-page-block') : null
-          let current = host !== null ? Number(host.dataset.page) : reportedPageRef.current
-          if (!Number.isInteger(current) || current < 1) current = 1
+          const line = container.getBoundingClientRect().top + 36
+          let current = 1
+          for (let number = 1; number <= pageCount; number += 1) {
+            const element = pageElementsRef.current.get(number)
+            if (element === undefined) continue
+            const rect = element.getBoundingClientRect()
+            if (rect.top <= line) current = number
+            else break
+          }
           // A short final page cannot reach the reading line; make the bottom
           // of the scroll container count as the last page explicitly.
           if (container.scrollTop + container.clientHeight >= container.scrollHeight - 4) current = pageCount
@@ -4703,4 +4702,5 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     }
   },
 })
+
 

@@ -13,26 +13,6 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
 
-## [1.12.3] - 2026-11-10
-
-### Changed
-- Continuous view now builds the selectable PDF.js text layer only for the
-  page under the reading position. Neighbouring pages are still prefetched as
-  images, but no longer build several text layers (hundreds of absolutely
-  positioned spans) at once on the main thread. This is the main cause of the
-  delayed hover/click feedback while continuous mode was rendering.
-- Current-page detection while scrolling uses one `elementFromPoint` hit test
-  instead of walking every preceding page and calling
-  `getBoundingClientRect()` on each scroll frame.
-- Continuous mode keeps one rendered page on each side of the reading
-  position instead of two. Together with the current-only text layer this
-  halves the number of page images prepared during scrolling while a single
-  page flip still reuses a rendered canvas.
-- CSS containment on the header, reader column, PDF scroll area and page box
-  isolates their layout/paint from the header buttons, so a page repaint no
-  longer invalidates the top-right controls. Icon-button hover no longer uses
-  a 140 ms transition.
-
 ## [1.12.2] - 2026-11-10
 
 ### Changed
