@@ -1,1 +1,0 @@
-copy('DSR_DIAG'+JSON.stringify({hasDiagnostic:!!window.__dsrDiag,reader:!!document.querySelector('.dsr-root'),nodes:document.querySelectorAll('*').length,title:document.title,body:document.querySelector('.dsr-root')?.innerText.slice(0,200),draft:document.querySelector('.dsr-composer textarea')?.value}))

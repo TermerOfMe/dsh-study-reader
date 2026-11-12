@@ -1,1 +1,0 @@
-((out)=>fetch('/api/dsh-study/page?id=2d6099fd2d55d97ba6308e0e&n=95&w=1600').then(async r=>{const b=await r.blob();out('DSR_DIAG'+JSON.stringify({status:r.status,type:r.type,headers:[...r.headers],bytes:b.size,blobType:b.type,error:r.ok?null:await b.text()}))}).catch(e=>out('DSR_DIAG'+JSON.stringify({error:String(e),stack:e.stack}))))(copy)
