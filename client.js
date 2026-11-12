@@ -94,6 +94,10 @@ globalThis.__ModuleLoader__.load({
         readPages: '参考页',
         pageShort: '第 {n} 页',
         search: '查找',
+        searchInputKeys: '输入关键词后按 Enter 浏览结果；Esc 返回阅读',
+        searchBrowseKeys: 'A/D 或 ←/→：上/下一个；W/S 或 ↑/↓ 同样可用；F 修改关键词；Esc 返回阅读',
+        shortcutNeedsSelection: '请先选择文字或框选页面区域',
+        shortcutQuestion: 'Q 聚焦提问',
         searchPlaceholder: '搜索正文关键词…',
         searchEmpty: '输入关键词搜索正文',
         searchNoResult: '没有找到匹配内容',
@@ -326,6 +330,10 @@ globalThis.__ModuleLoader__.load({
         readPages: 'Pages read',
         pageShort: 'p. {n}',
         search: 'Find',
+        searchInputKeys: 'Type a query, then Enter to browse results; Esc returns to reading',
+        searchBrowseKeys: 'A/D or ←/→: previous/next; W/S or ↑/↓ also work; F edits the query; Esc returns to reading',
+        shortcutNeedsSelection: 'Select text or a page region first',
+        shortcutQuestion: 'Q focuses the question box',
         searchPlaceholder: 'Search the document…',
         searchEmpty: 'Type a keyword to search the text',
         searchNoResult: 'No matches',
@@ -946,6 +954,38 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     const FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
     const SEARCH_RESULT_LIMIT = 200
 
+    // Pure keyboard policy. Text inputs keep literal WASD; navigation scopes
+    // normalize them before dispatch so every supported arrow has an alias.
+    function keyboardCommand(event, scope) {
+      if (event.defaultPrevented || event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey) return null
+      const literal = String(event.key).toLowerCase()
+      const key = ({ w: 'arrowup', a: 'arrowleft', s: 'arrowdown', d: 'arrowright' })[literal] ?? literal
+      if (event.altKey) {
+        if (scope !== 'reader' || event.shiftKey) return null
+        return key === 'arrowleft' ? 'back' : key === 'arrowright' ? 'forward' : null
+      }
+      if (scope === 'search') {
+        if (key === 'enter') return event.shiftKey ? 'previous-result' : 'next-result'
+        if (event.shiftKey) return null
+        if (key === 'arrowleft' || key === 'arrowup') return 'previous-result'
+        if (key === 'arrowright' || key === 'arrowdown') return 'next-result'
+        return literal === 'f' ? 'search-input' : null
+      }
+      if (literal === '+' || (literal === '=' && !event.shiftKey)) return scope === 'reader' ? 'zoom-in' : null
+      if (literal === '-' && !event.shiftKey) return scope === 'reader' ? 'zoom-out' : null
+      if (event.shiftKey) return null
+      if (scope === 'reader') return ({ arrowleft: 'previous-page', arrowright: 'next-page', arrowup: 'scroll-up', arrowdown: 'scroll-down', g: 'page-number' })[key] ?? null
+      return ({ f: 'search', o: 'toc', q: 'ask', t: 'translate', e: 'highlight', r: 'note' })[literal] ?? null
+    }
+
+    function isKeyboardInput(target) {
+      return target instanceof Element && !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]')
+    }
+
+    function focusPdf(root) {
+      root?.querySelector('.dsr-pdf-scroll')?.focus({ preventScroll: true })
+    }
+
     /** Keep keyboard focus inside an open dialog and close it on Escape. */
     function useModalFocus(open, onClose, containerRef, initialFocusRef) {
       const closeRef = useRef(onClose)
@@ -953,20 +993,27 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       useEffect(() => {
         if (!open) return undefined
         const previous = document.activeElement
+        const dialog = containerRef.current
+        const owner = dialog?.closest('.dsr-root')
         const focusTarget = () => {
           const target = initialFocusRef?.current ?? containerRef.current?.querySelector(FOCUSABLE) ?? containerRef.current
           try { target?.focus?.() } catch { /* the dialog may have closed */ }
         }
         const timer = window.setTimeout(focusTarget, 0)
         const onKeyDown = event => {
+          if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return
+          const container = containerRef.current
+          if (!container || !owner?.contains(event.target)) return
+          // Only the top dialog owns Escape/Tab, even when a second modal opens.
+          const dialogs = owner.querySelectorAll('[role="dialog"]')
+          if (dialogs[dialogs.length - 1] !== container) return
           if (event.key === 'Escape') {
             event.preventDefault()
+            if (event.repeat) return
             closeRef.current?.()
             return
           }
           if (event.key !== 'Tab') return
-          const container = containerRef.current
-          if (container === null || container === undefined) return
           const items = Array.from(container.querySelectorAll(FOCUSABLE)).filter(element => element.getClientRects().length > 0)
           if (items.length === 0) return
           const first = items[0]
@@ -984,8 +1031,15 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         return () => {
           window.clearTimeout(timer)
           document.removeEventListener('keydown', onKeyDown)
-          if (previous !== null && previous !== undefined && typeof previous.focus === 'function') {
-            try { previous.focus() } catch { /* focus target was removed */ }
+          // A closed layer returns to the PDF without moving its scroll offset.
+          // When another dialog remains, restore focus inside that layer instead.
+          const remaining = Array.from(owner?.querySelectorAll('[role="dialog"]') ?? []).filter(item => item !== dialog && item.isConnected)
+          const top = remaining[remaining.length - 1]
+          if (top) {
+            try { (top.querySelector(FOCUSABLE) ?? top).focus({ preventScroll: true }) } catch {}
+          } else if (owner?.querySelector('.dsr-pdf-scroll')) focusPdf(owner)
+          else if (previous?.isConnected && typeof previous.focus === 'function') {
+            try { previous.focus({ preventScroll: true }) } catch { /* focus target was removed */ }
           }
         }
       }, [open, containerRef, initialFocusRef])
@@ -1045,6 +1099,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           const pageNumber = Number(page.dataset.page)
           if (!Number.isInteger(pageNumber)) return
           event.preventDefault()
+          container.focus({ preventScroll: true })
           try { window.getSelection()?.removeAllRanges() } catch { /* ignore */ }
           container.classList.add('dsr-selecting-region')
           drag = { page, pageNumber, startX: event.clientX, startY: event.clientY, moved: false }
@@ -1921,14 +1976,6 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         return () => { cancelled = true }
       }, [load, defaultDir, homeDir])
 
-      useEffect(() => {
-        const onKey = event => {
-          if (event.key === 'Escape') onClose()
-        }
-        document.addEventListener('keydown', onKey)
-        return () => document.removeEventListener('keydown', onKey)
-      }, [onClose])
-
       const openRow = entry => {
         if (entry.type === 'directory') void load(entry.path)
         else if (entry.supported) onOpenPath(entry.path)
@@ -2399,8 +2446,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     })
 
-    function ChatBody({ t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote, onClear, empty, onAhead, onReadPage, scrollRef, docId, onToast }) {
-      const [draft, setDraft] = useState('')
+    function ChatBody({ t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote, onClear, empty, onAhead, onReadPage, scrollRef, docId, onToast, draft, setDraft }) {
       const inputRef = useRef(null)
       const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined
       const lastTextLength = lastMessage?.text?.length ?? 0
@@ -2466,7 +2512,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               messages.map(message => h(MessageBubble, { key: message.id, message, t, docId, onAhead, onReadPage, onToast }))
             )
         ),
-        h('div', { className: 'dsr-composer' },
+        h('div', { className: 'dsr-composer', tabIndex: -1 },
           h('div', { className: 'dsr-composer-box' },
             quote !== null ? h('div', { className: 'dsr-quote-chip' },
               h('span', { className: 'dsr-quote-label' }, t('quoteLabel')),
@@ -2583,7 +2629,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     function SidePanel({
       doc, t, mode, setMode, panelTab, setPanelTab, messages, busy, onSend, onStop,
       quote, onClearQuote, onClearChat, onAhead, onReadPage, translations, targetLanguage, setTargetLanguage,
-      onClearTranslations, onTranslateAgain, onToast, onClose, modelAvailable, positionLabel, chatOpen,
+      onClearTranslations, onTranslateAgain, onToast, onClose, modelAvailable, positionLabel, chatOpen, draft, setDraft,
     }) {
       const chatScroll = useRef(null)
       const transScroll = useRef(null)
@@ -2616,7 +2662,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             h(ChatBody, {
               t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote,
               onClear: onClearChat, onAhead, onReadPage, scrollRef: chatScroll,
-              docId: doc?.id ?? '', onToast,
+              docId: doc?.id ?? '', onToast, draft, setDraft,
             })
           )
           : h(TranslationBody, {
@@ -2664,7 +2710,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             ? h('button', {
               type: 'button',
               className: 'dsr-icon-btn',
-              title: searchable ? t('search') : t('searchNoText'),
+              title: searchable ? t('search') + ' (F)' : t('searchNoText'),
               'aria-label': t('search'),
               disabled: !searchable,
               onClick: onSearch,
@@ -2674,7 +2720,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             ? h('button', {
               type: 'button',
               className: 'dsr-icon-btn',
-              title: tocAvailable ? t('toc') : t('tocLoading'),
+              title: tocAvailable ? t('toc') + ' (O)' : t('tocLoading'),
               'aria-label': tocAvailable ? t('toc') : t('tocLoading'),
               disabled: !tocAvailable,
               onClick: onToc,
@@ -2684,7 +2730,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             ? h('button', {
               type: 'button',
               className: cls('dsr-icon-btn', chatOpen && 'is-active'),
-              title: chatOpen ? t('closePanel') : t('openPanel'),
+              title: (chatOpen ? t('closePanel') : t('openPanel')) + ' · ' + t('shortcutQuestion'),
               'aria-label': chatOpen ? t('closePanel') : t('openPanel'),
               onClick: () => setChatOpen(value => !value),
             }, h(Icon, { name: 'chat', size: 15 }))
@@ -2727,74 +2773,64 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     function SearchDialog({ doc, t, onJump, onClose }) {
       const [query, setQuery] = useState('')
       const [active, setActive] = useState(0)
+      const [browsing, setBrowsing] = useState(false)
       const panelRef = useRef(null)
       const inputRef = useRef(null)
+      const resultRef = useRef(null)
       useModalFocus(true, onClose, panelRef, inputRef)
       const results = useMemo(() => searchBlocks(doc, query), [doc, query])
       const searchable = doc.blocks.length > 0 || (doc.toc?.length ?? 0) > 0
       const choose = index => {
-        const result = results[index]
-        if (result === undefined) return
-        setActive(index)
-        onJump(result.blockId)
+        if (!results.length) return
+        const next = (index + results.length) % results.length
+        setActive(next)
+        setBrowsing(true)
+        onJump(results[next].blockId)
+        resultRef.current?.focus({ preventScroll: true })
       }
-      const meta = !searchable
-        ? t('searchNoText')
-        : query.trim() === ''
-          ? t('searchEmpty')
-          : results.length === 0
-            ? t('searchNoResult')
-            : `${tr(t, 'searchResults', { n: results.length })}${results.length >= SEARCH_RESULT_LIMIT ? ` · ${t('searchMore')}` : ''}`
-      return h('div', {
-        className: 'dsr-search-layer',
-        onMouseDown: event => { if (event.target === event.currentTarget) onClose() },
-      },
-        h('div', { ref: panelRef, className: 'dsr-search', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('search') },
+      useEffect(() => {
+        if (browsing) panelRef.current?.querySelector('.dsr-search-result.is-active')?.scrollIntoView({ block: 'nearest' })
+      }, [active, browsing])
+      const onKeyDown = event => {
+        if (isKeyboardInput(event.target)) return
+        const command = keyboardCommand(event, 'search')
+        if (!command) return
+        event.preventDefault()
+        event.stopPropagation()
+        if (command === 'search-input') { setBrowsing(false); inputRef.current?.focus(); inputRef.current?.select(); return }
+        if (event.target === resultRef.current || browsing) choose(active + (command === 'previous-result' ? -1 : 1))
+        else choose(active)
+      }
+      const meta = !searchable ? t('searchNoText') : query.trim() === '' ? t('searchEmpty') : !results.length ? t('searchNoResult')
+        : tr(t, 'searchResults', { n: results.length }) + (results.length >= SEARCH_RESULT_LIMIT ? ' · ' + t('searchMore') : '')
+      return h('div', { className: 'dsr-search-layer', onMouseDown: event => { if (event.target === event.currentTarget) onClose() } },
+        h('div', { ref: panelRef, className: 'dsr-search', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('search'), onKeyDown },
           h('div', { className: 'dsr-search-head' },
             h(Icon, { name: 'search', size: 14 }),
             h('input', {
-              ref: inputRef,
-              className: 'dsr-search-input',
-              value: query,
-              onChange: event => {
-                setQuery(event.target.value)
-                setActive(0)
-              },
+              ref: inputRef, className: 'dsr-search-input', value: query,
+              onFocus: () => setBrowsing(false),
+              onChange: event => { setQuery(event.target.value); setActive(0); setBrowsing(false) },
               onKeyDown: event => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  if (results.length === 0) return
-                  choose(active % results.length)
-                  setActive(value => (value + 1) % results.length)
-                } else if (event.key === 'ArrowDown') {
-                  event.preventDefault()
-                  setActive(value => results.length === 0 ? 0 : Math.min(results.length - 1, value + 1))
-                } else if (event.key === 'ArrowUp') {
-                  event.preventDefault()
-                  setActive(value => Math.max(0, value - 1))
-                }
+                if (event.key !== 'Enter' || event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey) return
+                event.preventDefault(); event.stopPropagation(); choose(active)
               },
-              placeholder: t('searchPlaceholder'),
-              'aria-label': t('searchPlaceholder'),
-              spellCheck: false,
-              autoComplete: 'off',
+              placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder'), spellCheck: false, autoComplete: 'off',
             }),
             h('button', { type: 'button', className: 'dsr-icon-btn', onClick: onClose, title: t('close'), 'aria-label': t('close') }, h(Icon, { name: 'close', size: 13 }))
           ),
           h('div', { className: 'dsr-search-meta' }, meta),
-          results.length > 0
-            ? h('div', { className: 'dsr-search-list' },
-              results.map((result, index) => h('button', {
-                type: 'button',
-                key: `${result.blockId}-${index}`,
-                className: cls('dsr-search-result', index === active && 'is-active'),
-                'aria-current': index === active ? 'true' : undefined,
-                onClick: () => choose(index),
-              },
-                h('span', { className: 'dsr-search-snippet' }, result.prefix, h('mark', null, result.match), result.suffix),
-                h('span', { className: 'dsr-search-page' }, result.label)
-              )))
-            : null
+          h('div', { className: 'dsr-search-meta', 'aria-live': 'polite' }, t(browsing ? 'searchBrowseKeys' : 'searchInputKeys')),
+          h('div', { className: 'dsr-search-list', ref: resultRef, tabIndex: -1, 'aria-label': t('search') },
+            results.map((result, index) => h('button', {
+              type: 'button', key: result.blockId + '-' + index,
+              className: cls('dsr-search-result', index === active && 'is-active'),
+              'aria-current': index === active ? 'true' : undefined,
+              onClick: () => choose(index),
+            },
+              h('span', { className: 'dsr-search-snippet' }, result.prefix, h('mark', null, result.match), result.suffix),
+              h('span', { className: 'dsr-search-page' }, result.label)
+            )))
         )
       )
     }
@@ -2931,7 +2967,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         role: 'toolbar',
         'aria-label': t('selectionTranslate'),
       },
-        h('button', { type: 'button', className: 'dsr-selection-btn primary', onMouseDown: keepSelection, onClick: () => onTranslate(lang) },
+        h('button', { type: 'button', className: 'dsr-selection-btn primary', title: t('selectionTranslate') + ' (T)', onMouseDown: keepSelection, onClick: () => onTranslate(lang) },
           h(Icon, { name: 'translate', size: 13 }), t('selectionTranslate')),
         h('select', {
           value: lang,
@@ -2941,10 +2977,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             setTargetLanguage(event.target.value)
           },
         }, TARGET_LANGUAGES.map(([value, zhLabel, enLabel]) => h('option', { key: value, value }, t('source') === 'Source' ? enLabel : zhLabel))),
-        h('button', { type: 'button', className: 'dsr-selection-btn', onMouseDown: keepSelection, onClick: onHighlight }, t('highlight')),
-        h('button', { type: 'button', className: 'dsr-selection-btn', onMouseDown: keepSelection, onClick: onNote }, t('addNote')),
+        h('button', { type: 'button', className: 'dsr-selection-btn', title: t('highlight') + ' (E)', onMouseDown: keepSelection, onClick: onHighlight }, t('highlight')),
+        h('button', { type: 'button', className: 'dsr-selection-btn', title: t('addNote') + ' (R)', onMouseDown: keepSelection, onClick: onNote }, t('addNote')),
         h('span', { className: 'dsr-selection-sep', 'aria-hidden': true }),
-        h('button', { type: 'button', className: 'dsr-selection-btn', onMouseDown: keepSelection, onClick: onAsk },
+        h('button', { type: 'button', className: 'dsr-selection-btn', title: t('selectionAsk') + ' (Q)', onMouseDown: keepSelection, onClick: onAsk },
           h(Icon, { name: 'chat', size: 13 }), t('selectionAsk')),
         h('button', { type: 'button', className: 'dsr-selection-btn', onMouseDown: keepSelection, onClick: onExplain },
           h(Icon, { name: 'spark', size: 13 }), t('selectionExplain'))
@@ -3392,7 +3428,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     // ── original view ────────────────────────────────────────────────────────
 
-    function OriginalView({ doc, t, pdfjsInfo, onSelect, onPositionBlock, onPageChange, jumpRequest, onEngine, annotations, onEditNote, onBookmark, onNotes }) {
+    function OriginalView({ doc, t, pdfjsInfo, onSelect, onPositionBlock, onPageChange, jumpRequest, onEngine, annotations, onEditNote, onBookmark, onNotes, controlsRef }) {
       const marksByPage = useMemo(() => { const map = new Map(); for (const item of annotations) { if (!map.has(item.pdfPage)) map.set(item.pdfPage, []); map.get(item.pdfPage).push(item) } return map }, [annotations])
       const [status, setStatus] = useState('loading')
       const [error, setError] = useState('')
@@ -3497,23 +3533,15 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         if (status !== 'ready') return undefined
         const root = scrollRef.current
         if (!root) return undefined
-        const onKey = event => {
-          if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"]')) return
-          if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-            event.preventDefault(); travel(event.key === 'ArrowLeft' ? 'back' : 'forward')
-          }
-        }
         const onMouse = event => {
           if (event.button !== 3 && event.button !== 4) return
           event.preventDefault(); travel(event.button === 3 ? 'back' : 'forward')
         }
-        const reader = root.closest('.dsr-original') ?? root
-        reader.addEventListener('keydown', onKey)
         root.addEventListener('mouseup', onMouse)
         const preventAux = event => { if (event.button === 3 || event.button === 4) event.preventDefault() }
         root.addEventListener('mousedown', preventAux)
         root.addEventListener('auxclick', preventAux)
-        return () => { reader.removeEventListener('keydown', onKey); root.removeEventListener('mouseup', onMouse); root.removeEventListener('mousedown', preventAux); root.removeEventListener('auxclick', preventAux) }
+        return () => { root.removeEventListener('mouseup', onMouse); root.removeEventListener('mousedown', preventAux); root.removeEventListener('auxclick', preventAux) }
       }, [status, pageNumber, pageCount, mode])
       useEffect(() => {
         if (status !== 'ready' || !pendingPositionRef.current) return undefined
@@ -3882,6 +3910,25 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         else setPageDraft(String(pageNumber))
       }
 
+      useEffect(() => {
+        const control = command => {
+          if (status !== 'ready') return false
+          const root = scrollRef.current
+          if (!root) return false
+          if (command === 'previous-page' || command === 'next-page') goPage(pageNumber + (command === 'next-page' ? 1 : -1))
+          else if (command === 'scroll-up' || command === 'scroll-down') root.scrollBy({ top: command === 'scroll-down' ? 80 : -80, behavior: 'auto' })
+          else if (command === 'back' || command === 'forward') travel(command)
+          else if (command === 'page-number') {
+            const input = root.closest('.dsr-original')?.querySelector('.dsr-pdf-page-input')
+            input?.focus({ preventScroll: true }); input?.select()
+          } else if (command === 'zoom-in' || command === 'zoom-out') changeZoom({ mode: 'custom', percent: Math.min(300, Math.max(25, Math.round(width / naturalSize.width * 100) + (command === 'zoom-in' ? 25 : -25))) })
+          else return false
+          return true
+        }
+        controlsRef.current = control
+        return () => { if (controlsRef.current === control) controlsRef.current = null }
+      })
+
       const fallbackUrl = `${APP_BASE}/preview?id=${encodeURIComponent(doc.id)}`
       return h('div', { className: 'dsr-original' },
         h('div', { className: 'dsr-original-bar' },
@@ -3894,13 +3941,13 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               title: engine === 'pdfium' ? t('pdfiumEngine') : t('pdfjsEngine'),
             }, engine === 'pdfium' ? 'PDFium' : 'PDF.js'),
           h('div', { className: 'dsr-zoom', role: 'group', 'aria-label': t('zoomLabel') },
-            h('button', { type: 'button', className: 'dsr-icon-btn', title: t('navBack'), 'aria-label': t('navBack'), disabled: !historyRef.current.back.length, onClick: () => travel('back') }, '↶'),
-            h('button', { type: 'button', className: 'dsr-icon-btn', title: t('navForward'), 'aria-label': t('navForward'), disabled: !historyRef.current.forward.length, onClick: () => travel('forward') }, '↷'),
-            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' −', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.max(25, Math.round(width / naturalSize.width * 100) - 25) }) }, '−'),
+            h('button', { type: 'button', className: 'dsr-icon-btn', title: t('navBack') + ' (Alt+← / Alt+A)', 'aria-label': t('navBack'), disabled: !historyRef.current.back.length, onClick: () => travel('back') }, '↶'),
+            h('button', { type: 'button', className: 'dsr-icon-btn', title: t('navForward') + ' (Alt+→ / Alt+D)', 'aria-label': t('navForward'), disabled: !historyRef.current.forward.length, onClick: () => travel('forward') }, '↷'),
+            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' −', title: t('zoomLabel') + ' (−)', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.max(25, Math.round(width / naturalSize.width * 100) - 25) }) }, '−'),
             h('select', { className: 'dsr-select', value: zoom.mode === 'custom' ? String(zoom.percent) : zoom.mode, 'aria-label': t('zoomLabel'), disabled: status !== 'ready', onChange: event => changeZoom(['width','page'].includes(event.target.value) ? { mode: event.target.value, percent: zoom.percent } : { mode: 'custom', percent: Number(event.target.value) }) },
               h('option', { value: 'width' }, t('zoomWidth')), h('option', { value: 'page' }, t('zoomPage')),
               [...new Set([25,50,75,100,125,150,175,200,250,300,zoom.percent])].sort((a,b)=>a-b).map(value => h('option', { key: value, value: String(value) }, value + '%'))),
-            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' +', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.min(300, Math.round(width / naturalSize.width * 100) + 25) }) }, '+')
+            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' +', title: t('zoomLabel') + ' (+)', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.min(300, Math.round(width / naturalSize.width * 100) + 25) }) }, '+')
           ),
           h('div', { className: 'dsr-pdf-mode', role: 'group', 'aria-label': t('pageMode') },
             h('button', {
@@ -3922,7 +3969,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               className: 'dsr-icon-btn',
               disabled: status !== 'ready' || pageNumber <= 1,
               onClick: () => goPage(pageNumber - 1),
-              title: t('prevPage'),
+              title: t('prevPage') + ' (← / A)',
               'aria-label': t('prevPage'),
             }, h('span', { style: { display: 'flex', transform: 'rotate(180deg)' } }, h(Icon, { name: 'chevron', size: 13 }))),
             h('input', {
@@ -3930,8 +3977,16 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               inputMode: 'numeric',
               value: pageDraft,
               onChange: event => setPageDraft(event.target.value.replace(/[^\d]/g, '')),
-              onKeyDown: event => { if (event.key === 'Enter') commitPageDraft() },
-              'aria-label': t('pageInput'),
+              onKeyDown: event => {
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return
+                if (event.key === 'Enter' || event.key === 'Escape') {
+                  event.preventDefault(); event.stopPropagation()
+                  if (event.key === 'Enter') commitPageDraft()
+                  else setPageDraft(String(pageNumber))
+                  scrollRef.current?.focus({ preventScroll: true })
+                }
+              },
+              'aria-label': t('pageInput'), title: t('pageInput') + ' (G)',
               disabled: status !== 'ready',
             }),
             h('span', { className: 'dsr-pdf-count' }, `/ ${pageCount || '—'}`),
@@ -3940,7 +3995,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               className: 'dsr-icon-btn',
               disabled: status !== 'ready' || pageNumber >= pageCount,
               onClick: () => goPage(pageNumber + 1),
-              title: t('nextPage'),
+              title: t('nextPage') + ' (→ / D)',
               'aria-label': t('nextPage'),
             }, h(Icon, { name: 'chevron', size: 13 }))
           ),
@@ -4060,7 +4115,12 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     function AnnotationDialog({ doc, items, loading, loadError, initial, t, onSave, onRemove, onJump, onClose }) {
       const ref=useRef(null), [editing,setEditing]=useState(initial ?? null), [filter,setFilter]=useState(''), [kind,setKind]=useState('all'), [saving,setSaving]=useState(false), [error,setError]=useState('')
-      useModalFocus(true,()=>{if(!saving)onClose()},ref)
+      const noteInputRef = useRef(null)
+      useModalFocus(true,()=>{if(saving)return;if(editing)setEditing(null);else onClose()},ref,noteInputRef)
+      useEffect(() => {
+        const target = editing ? ref.current?.querySelector('textarea') : ref.current?.querySelector(FOCUSABLE)
+        target?.focus({ preventScroll: true })
+      }, [!!editing])
       const update=(key,value)=>setEditing(old=>({...old,[key]:value}))
       const save=async()=>{if(!editing || saving)return;setSaving(true);setError('');try{await onSave({...editing,tags:typeof editing.tags==='string'?editing.tags.split(/[,，]/).map(x=>x.trim()).filter(Boolean):editing.tags??[]});setEditing(null)}catch(err){setError(err.message)}finally{setSaving(false)}}
       const remove=async item=>{if(!window.confirm(t('noteDeleteConfirm')))return;setSaving(true);setError('');try{await onRemove(item.id);if(editing?.id===item.id)setEditing(null)}catch(err){setError(err.message)}finally{setSaving(false)}}
@@ -4075,7 +4135,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               h('div',{className:'dsr-note-meta'},tr(t,'pdfPageLabel',{n:editing.pdfPage})),
               editing.quote?h('blockquote',{className:'dsr-evidence-quote'},editing.quote):null,
               h('label',null,t('annotationType'),h('select',{className:'dsr-select',value:editing.type,onChange:e=>update('type',e.target.value)},[['bookmark','bookmark'],['highlight','highlight'],['note','addNote']].map(([value,key])=>h('option',{key:value,value},t(key))))),
-              h('label',null,t('noteText'),h('textarea',{value:editing.note??'',maxLength:20000,onChange:e=>update('note',e.target.value)})),
+              h('label',null,t('noteText'),h('textarea',{ref:noteInputRef,value:editing.note??'',maxLength:20000,onChange:e=>update('note',e.target.value)})),
               h('label',null,t('noteTags'),h('input',{value:Array.isArray(editing.tags)?editing.tags.join(', '):editing.tags??'',onChange:e=>update('tags',e.target.value)})),
               h('div',{className:'dsr-note-actions'},h('button',{type:'button',className:'dsr-btn dsr-btn-primary',disabled:saving||loading,onClick:()=>void save()},saving?t('loading'):t('saveNote')),h('button',{type:'button',className:'dsr-btn',disabled:saving,onClick:()=>setEditing(null)},t('cancel')),editing.id?h('button',{type:'button',className:'dsr-btn',disabled:saving,onClick:()=>void remove(editing)},t('deleteNote')):null)
             ) : h(React.Fragment,null,
@@ -4147,6 +4207,11 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         return typeof stored === 'boolean' ? stored : (typeof window !== 'undefined' ? window.innerWidth > 1180 : true)
       })
       const [panelTab, setPanelTab] = useState('chat')
+      const [questionFocus, setQuestionFocus] = useState(0)
+      const [questionDraft, setQuestionDraft] = useState('')
+      const rootRef = useRef(null)
+      const readerControlsRef = useRef(null)
+      const heldActivationRef = useRef(null)
       const [messages, setMessages] = useState([])
       const [busy, setBusy] = useState(false)
       const [pendingQuote, setPendingQuote] = useState(null)
@@ -4179,11 +4244,26 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const docRef = useRef(null)
       const tocRef = useRef(null)
 
+      useEffect(() => {
+        const release = event => {
+          if ((event.code || event.key) === heldActivationRef.current) heldActivationRef.current = null
+        }
+        const blur = () => { heldActivationRef.current = null }
+        window.addEventListener('keyup', release, true)
+        window.addEventListener('blur', blur)
+        return () => {
+          window.removeEventListener('keyup', release, true)
+          window.removeEventListener('blur', blur)
+          heldActivationRef.current = null
+        }
+      }, [])
+
       useEffect(() => { docRef.current = doc }, [doc])
 
       // A new document starts with every chapter collapsed.
       useEffect(() => {
         setExpandedToc(new Set())
+        setQuestionDraft('')
         setSearchOpen(false)
         setEngine('')
       }, [doc?.id])
@@ -4359,16 +4439,6 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       useEffect(() => () => {
         try { askAbortRef.current?.abort() } catch { /* request already settled */ }
         try { translationAbortRef.current?.abort() } catch { /* request already settled */ }
-      }, [])
-
-      useEffect(() => {
-        const onKey = event => {
-          if (event.key !== 'Escape') return
-          setSelection(null)
-          setTocOpen(false)
-        }
-        document.addEventListener('keydown', onKey)
-        return () => document.removeEventListener('keydown', onKey)
       }, [])
 
       useEffect(() => {
@@ -4674,8 +4744,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       }, [])
 
       const askFromSelection = useCallback(() => {
-        if (selection === null) return
-        setPendingQuote({
+        if (selection !== null) setPendingQuote({
           text: selection.text,
           blockId: selection.blockId,
           page: selection.page,
@@ -4685,7 +4754,15 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         setChatOpenPersisted(true)
         setPanelTab('chat')
         setSelection(null)
+        setQuestionFocus(value => value + 1)
       }, [selection, setChatOpenPersisted])
+
+      useEffect(() => {
+        if (!questionFocus || !chatOpen || panelTab !== 'chat') return
+        const target = rootRef.current?.querySelector('.dsr-composer-box textarea:not(:disabled)')
+          ?? rootRef.current?.querySelector('.dsr-composer')
+        target?.focus({ preventScroll: true })
+      }, [questionFocus, chatOpen, panelTab])
 
       const explainSelection = useCallback(() => {
         if (selection === null || doc === null) return
@@ -4873,6 +4950,58 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         setJumpRequest(previous => ({ pageNumber, blockId, token: (previous?.token ?? 0) + 1 }))
       }, [doc?.extension, scrollToBlock])
 
+      // F/Q/R/G may move focus to an editor. Do not let the same held key
+      // start typing there before its matching keyup or window blur.
+      const onReaderKeyCapture = event => {
+        if (event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229) return
+        const key = event.code || event.key
+        if (event.repeat && heldActivationRef.current === key) {
+          event.preventDefault(); event.stopPropagation(); return
+        }
+        if (isKeyboardInput(event.target)) return
+        const action = keyboardCommand(event, 'page')
+        if (['search','ask','note'].includes(action) || keyboardCommand(event, 'reader') === 'page-number') heldActivationRef.current = key
+      }
+
+      const onReaderKeyDown = event => {
+        if (event.defaultPrevented || event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return
+        const root = rootRef.current
+        if (!root || openingPath) return
+        const dialogs = root.querySelectorAll('[role="dialog"]')
+        if (dialogs.length) {
+          // O is also the close shortcut while the outline is open. Other
+          // dialogs own their keys; none can accidentally flip the PDF.
+          if (tocOpen && dialogs[dialogs.length - 1] === tocRef.current && !isKeyboardInput(event.target) && keyboardCommand(event, 'page') === 'toc' && !event.repeat) {
+            event.preventDefault(); event.stopPropagation(); setTocOpen(false)
+          }
+          return
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault(); event.stopPropagation()
+          if (event.repeat) return
+          if (selection) { setSelection(null); try { window.getSelection()?.removeAllRanges() } catch {} }
+          else if (pendingQuote && event.target.closest?.('.dsr-side')) setPendingQuote(null)
+          else if (event.target.closest?.('.dsr-side')) setChatOpenPersisted(false)
+          focusPdf(root)
+          return
+        }
+        if (!doc || isKeyboardInput(event.target)) return
+        const reading = event.target.closest?.('.dsr-original') || event.target === root
+        const command = keyboardCommand(event, 'page') ?? (reading ? keyboardCommand(event, 'reader') : null)
+        if (!command) return
+        event.preventDefault(); event.stopPropagation()
+        if (['previous-page','next-page','scroll-up','scroll-down','zoom-in','zoom-out'].includes(command)) { readerControlsRef.current?.(command); return }
+        if (event.repeat) return
+        if (command === 'search') { setSelection(null); setTocOpen(false); setSearchOpen(true) }
+        else if (command === 'toc') { setSelection(null); setSearchOpen(false); setTocOpen(true) }
+        else if (command === 'ask') askFromSelection()
+        else if (command === 'translate' || command === 'highlight' || command === 'note') {
+          if (!selection) { showToast(t('shortcutNeedsSelection')); return }
+          if (command === 'translate') void translateSelection(targetLanguage || boot?.defaults?.defaultTargetLanguage || 'zh-CN')
+          else annotationFromSelection(command === 'highlight' ? 'highlight' : 'note')
+        } else readerControlsRef.current?.(command)
+      }
+
       const chatVisible = doc !== null && chatOpen
 
       const problems = []
@@ -4881,7 +5010,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       if (doc?.extractionError) problems.push(doc.extractionError)
       if (engine === 'pdfjs') problems.push(t('diagNoPdfium'))
 
-      return h(CitationContext.Provider, { value: setEvidenceRef }, h('div', { className: 'dsr-root' },
+      return h(CitationContext.Provider, { value: setEvidenceRef }, h('div', { className: 'dsr-root', ref: rootRef, tabIndex: -1, onKeyDownCapture: onReaderKeyCapture, onKeyDown: onReaderKeyDown },
         h(TopBar, {
           doc,
           t,
@@ -4944,7 +5073,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                   onPositionBlock: onPdfPosition,
                   onPageChange: onPdfPage,
                   jumpRequest,
-                  annotations, onEditNote: editAnnotation,
+                  annotations, onEditNote: editAnnotation, controlsRef: readerControlsRef,
                   onBookmark: page => setNotesDialog({initial:{type:"bookmark",pdfPage:page,note:"",tags:[],quote:""}}),
                   onNotes: () => setNotesDialog({initial:null}),
                 })
@@ -4957,7 +5086,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           chatVisible
             ? h(SidePanel, {
               doc, t, mode, setMode: setModePersisted, panelTab, setPanelTab,
-              messages, busy, onSend: sendQuestion, onStop: stopQuestion,
+              messages, busy, onSend: sendQuestion, onStop: stopQuestion, draft: questionDraft, setDraft: setQuestionDraft,
               quote: pendingQuote, onClearQuote: () => setPendingQuote(null),
               onClearChat: clearChat,
               onAhead: scrollToBlock,

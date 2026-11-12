@@ -12,6 +12,22 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
 
+## [1.16.0] - 2026-11-12
+
+### Added
+- 阅读区快捷键：←/A 上一页、→/D 下一页，↑/W 与 ↓/S 滚动，G 聚焦页码并 Enter 跳转，+/− 缩放；Alt+A/D 与 Alt+←/→ 阅读历史等价。
+- F 搜索、O 目录开关、Q 聚焦提问并携带选区、T 翻译选区、E 保存高亮、R 添加批注并聚焦备注；按钮增加对应快捷键提示。
+- 搜索输入与结果浏览分离：输入框内正常打字，Enter 后用 A/D、W/S 或对应方向键循环浏览，F 修改关键词，Esc 退出回 PDF；搜索浏览期间不触发阅读翻页。
+
+### Fixed
+- Esc 由最上层弹窗处理，批注编辑先退回列表，再退出至 PDF；页码 Enter/Esc 及其他弹窗退出恢复 PDF 焦点并保留滚动位置，避免重复监听器同时关闭多层。
+- Ctrl/⌘ 框选主动聚焦 PDF，避免选区快捷键误写进原先的输入框；中文组词、文本编辑、系统修饰键和 Shift+方向键保持正常行为。
+- 长按 Esc 只退出一层，长按 F/Q/R/G 不向新聚焦的输入框重复写入字母；翻页、滚动、缩放和结果浏览允许重复。
+
+### Verification
+- 新增 13 项实际键盘策略测试，覆盖方向键/WASD、历史、搜索/阅读作用域、输入法及修饰键保护；现有回归、JavaScript 语法及版本检查通过。
+- 已进行独立源码交互审查；工具环境没有浏览器控制能力，实际键盘、焦点与视觉效果仍需刷新后在真实阅读器确认。
+
 ## [1.15.0] - 2026-11-12
 
 ### Added
