@@ -46,7 +46,7 @@
 2. 在“插件的包名、GitHub 仓库地址或本地目录路径”输入框填入本项目的公开 GitHub 仓库地址；推荐固定到发布标签，例如：
 
    ```text
-   https://github.com/TermerOfMe/study-reader
+   https://github.com/TermerOfMe/dsh-study-reader
    ```
 
    `OWNER/REPOSITORY` 是待替换的示例，不是已经发布的地址。当前源码尚未配置 GitHub remote；维护者发布后应在这里替换为真实仓库地址。`@local/dsh-study-reader` 是插件内部包名，当前不是 npm 上可安装的包。
