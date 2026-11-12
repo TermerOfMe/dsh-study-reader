@@ -95,6 +95,9 @@ globalThis.__ModuleLoader__.load({
         pageShort: '第 {n} 页',
         search: '查找',
         searchInputKeys: '输入关键词后按 Enter 浏览结果；Esc 返回阅读',
+        searchPositionLoading: '正在定位页内文字…',
+        searchPositionApproximate: '已标出此页匹配文字；Office 转换页码为近似映射，请核对是否为所选原文。',
+        searchPositionUnavailable: '已到对应页，但页面文字层无法匹配该关键词，不能精确定位或标黄。',
         searchBrowseKeys: 'A/D 或 ←/→：上/下一个；W/S 或 ↑/↓ 同样可用；F 修改关键词；Esc 返回阅读',
         shortcutNeedsSelection: '请先选择文字或框选页面区域',
         shortcutQuestion: 'Q 聚焦提问',
@@ -331,6 +334,9 @@ globalThis.__ModuleLoader__.load({
         pageShort: 'p. {n}',
         search: 'Find',
         searchInputKeys: 'Type a query, then Enter to browse results; Esc returns to reading',
+        searchPositionLoading: 'Locating matching text on the page…',
+        searchPositionApproximate: 'Matching text marked; Office page mapping is approximate. Check that this is the intended passage.',
+        searchPositionUnavailable: 'Page opened, but its text layer cannot match this query for precise positioning or highlighting.',
         searchBrowseKeys: 'A/D or ←/→: previous/next; W/S or ↑/↓ also work; F edits the query; Esc returns to reading',
         shortcutNeedsSelection: 'Select text or a page region first',
         shortcutQuestion: 'Q focuses the question box',
@@ -829,7 +835,9 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-search-result{width:100%;display:flex;align-items:baseline;gap:8px;border:0;background:transparent;border-radius:5px;padding:6px 8px;text-align:left;font-size:11px;line-height:1.5;color:var(--dsw-alias-label-primary);cursor:pointer}
 .dsr-search-result:hover,.dsr-search-result.is-active{background:var(--dsw-alias-bg-layer-2)}
 .dsr-search-snippet{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.dsr-search-snippet mark{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 22%,transparent);color:inherit;border-radius:2px;padding:0 1px}
+.dsr-search-snippet mark{background:rgba(255,220,0,.48);color:inherit;border-radius:2px;padding:0 1px}
+.dsr-search.is-browsing{max-height:min(240px,35vh)}
+.dsr-search-marks{position:absolute;inset:0;pointer-events:none;z-index:4;overflow:hidden}.dsr-search-mark{position:absolute;background:rgba(255,220,0,.42);border-radius:2px;pointer-events:none}.dsr-search-mark.is-active{background:rgba(255,220,0,.62);outline:1px solid #d9a600}
 .dsr-search-page{flex:none;font-size:9px;opacity:.65;margin-left:auto;white-space:nowrap}
 .dsr-original{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;background:var(--dsw-alias-bg-layer-2)}
 .dsr-original-bar{flex:none;display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);font-size:10.5px;color:var(--dsw-alias-label-secondary);min-height:42px;overflow-x:auto;scrollbar-width:none}
@@ -1185,6 +1193,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           page,
           label: doc.pages[page]?.label ?? '',
           kind,
+          context: text,
+          query: String(query).trim(),
           prefix: `${start > 0 ? '…' : ''}${text.slice(start, at)}`,
           match: text.slice(at, at + needle.length),
           suffix: `${text.slice(at + needle.length, end)}${end < text.length ? '…' : ''}`,
@@ -1201,6 +1211,145 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         if (results.length >= SEARCH_RESULT_LIMIT) break
       }
       return results
+    }
+
+    // Keep UTF-16 offsets back to original text while joining PDF fragments,
+    // wrapped lines, compatibility ligatures and case-insensitive matches.
+    function searchTextIndex(value) {
+      const source = String(value ?? '')
+      let text = ''
+      const starts = [], ends = []
+      let offset = 0
+      for (const segment of source.matchAll(/\P{M}\p{M}*|\p{M}+/gu)) {
+        const character = segment[0]
+        const end = offset + character.length
+        const normalized = character.normalize('NFKC').toLowerCase().replace(/[\s\u00ad]/gu, '')
+        for (let i = 0; i < normalized.length; i++) { text += normalized[i]; starts.push(offset); ends.push(end) }
+        offset = end
+      }
+      return { text, starts, ends }
+    }
+
+    function searchTextMatches(source, query, context = '') {
+      const index = searchTextIndex(source)
+      const needle = searchTextIndex(query).text
+      if (!needle) return { matches: [], active: -1 }
+      const surrounding = searchTextIndex(context).text
+      const contextAt = surrounding.indexOf(needle)
+      const before = contextAt < 0 ? '' : surrounding.slice(Math.max(0, contextAt - 80), contextAt)
+      const after = contextAt < 0 ? '' : surrounding.slice(contextAt + needle.length, contextAt + needle.length + 80)
+      const matches = []
+      let active = -1, best = -1, at = 0
+      while ((at = index.text.indexOf(needle, at)) >= 0 && matches.length < 2000) {
+        let score = 0
+        for (let i = 1; i <= before.length && at >= i && before[before.length-i] === index.text[at-i]; i++) score++
+        for (let i = 0; i < after.length && after[i] === index.text[at+needle.length+i]; i++) score++
+        if (score > best) { best = score; active = matches.length }
+        matches.push({ start: index.starts[at], end: index.ends[at+needle.length-1] })
+        at += needle.length
+      }
+      return { matches, active }
+    }
+
+    function pageSearchGeometry(page, hit) {
+      const layer = page.querySelector('.dsr-pdf-textLayer')
+      if (!layer || layer.dataset.searchPage !== page.dataset.page) return null
+      const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT)
+      const nodes = []
+      let source = '', node
+      while ((node = walker.nextNode())) {
+        if (!node.textContent) continue
+        nodes.push({ node, start: source.length, end: source.length + node.textContent.length })
+        source += node.textContent
+      }
+      const found = searchTextMatches(source, hit.query, hit.context)
+      const pageRect = page.getBoundingClientRect()
+      const marks = []
+      let target = null
+      for (let index = 0; index < found.matches.length; index++) {
+        const match = found.matches[index]
+        const first = nodes.find(item => item.end > match.start)
+        const last = nodes.find(item => item.end >= match.end)
+        if (!first || !last) continue
+        const range = document.createRange()
+        range.setStart(first.node, match.start - first.start)
+        range.setEnd(last.node, match.end - last.start)
+        const rects = Array.from(range.getClientRects()).filter(rect => rect.width > 0 && rect.height > 0)
+        for (const rect of rects) {
+          const mark = { x: (rect.left-pageRect.left)/pageRect.width, y: (rect.top-pageRect.top)/pageRect.height, width: rect.width/pageRect.width, height: rect.height/pageRect.height, active: index === found.active }
+          marks.push(mark)
+          if (mark.active && !target) target = rect
+        }
+      }
+      return { marks, target }
+    }
+
+    function useSearchMarks(scrollRef, hit, pendingPositionRef, onStatus, readyKey) {
+      const located = useRef(null)
+      useEffect(() => {
+        const root = scrollRef.current
+        if (!root) return
+        if (!hit) { root.querySelectorAll('.dsr-search-marks').forEach(element => element.remove()); return }
+        let frame = 0, stopped = false, userMoved = false
+        let settleUntil = 0
+        const interrupt = () => { userMoved = true }
+        const clear = () => root.querySelectorAll('.dsr-search-marks').forEach(element => element.remove())
+        const update = () => {
+          frame = 0
+          if (stopped) return
+          clear()
+          if (!hit) return
+          const page = root.querySelector('.dsr-pdf-page[data-page="' + hit.pageNumber + '"]')
+          if (!page) return
+          resize.observe(page)
+          const flow = root.querySelector('.dsr-pdf-flow,.dsr-pdf-stage')
+          if (flow) resize.observe(flow)
+          const geometry = pageSearchGeometry(page, hit)
+          if (!geometry) return
+          const overlay = document.createElement('div')
+          overlay.className = 'dsr-search-marks'
+          overlay.setAttribute('aria-hidden', 'true')
+          const fragment = document.createDocumentFragment()
+          for (const mark of geometry.marks) {
+            const element = document.createElement('span')
+            element.className = 'dsr-search-mark' + (mark.active ? ' is-active' : '')
+            Object.assign(element.style, { left: mark.x*100+'%', top: mark.y*100+'%', width: mark.width*100+'%', height: mark.height*100+'%' })
+            fragment.appendChild(element)
+          }
+          overlay.appendChild(fragment); page.appendChild(overlay)
+          if (pendingPositionRef.current) return
+          const alreadyLocated = located.current === hit.token
+          if (alreadyLocated && (userMoved || performance.now() > settleUntil)) return
+          if (!geometry.target) { if (!alreadyLocated) onStatus('searchPositionUnavailable'); located.current = hit.token; return }
+          located.current = hit.token
+          if (!alreadyLocated) settleUntil = performance.now() + 2500
+          onStatus(hit.approximate ? 'searchPositionApproximate' : '')
+          const rect = geometry.target, view = root.getBoundingClientRect()
+          // Browsing search results keeps a compact dialog open. Put the hit
+          // below it when it overlaps this reading column, without moving focus.
+          const dialog = root.closest('.dsr-root')?.querySelector('.dsr-search')?.getBoundingClientRect()
+          const covered = dialog && dialog.left < rect.right && dialog.right > rect.left && dialog.top < rect.bottom && dialog.bottom > rect.top
+          if (alreadyLocated && !covered && rect.top >= view.top + 8 && rect.bottom <= view.bottom - 8 && rect.left >= view.left && rect.right <= view.right) return
+          let top = view.top + Math.min(view.height * .35, 180)
+          const nextLeft = Math.min(Math.max(0, root.scrollWidth - root.clientWidth), Math.max(0, root.scrollLeft + rect.left - view.left - 28))
+          const predictedLeft = rect.left - (nextLeft - root.scrollLeft)
+          if (dialog && dialog.left < predictedLeft + rect.width && dialog.right > predictedLeft && dialog.bottom > top) top = Math.min(view.bottom - Math.min(60,view.height/4), dialog.bottom + 24)
+          root.scrollTo({ top: Math.max(0, root.scrollTop + rect.top - top), left: Math.max(0, root.scrollLeft + rect.left - view.left - 28), behavior: 'auto' })
+        }
+        const schedule = () => { if (!frame) frame = requestAnimationFrame(update) }
+        const observer = new MutationObserver(records => {
+          if (records.some(record => record.target.closest?.('.dsr-pdf-textLayer') || Array.from([...record.addedNodes, ...record.removedNodes]).some(node => node.nodeType === 1 && !node.matches('.dsr-search-marks,.dsr-search-mark') && (node.matches('.dsr-pdf-page,.dsr-pdf-textLayer') || node.querySelector('.dsr-pdf-page,.dsr-pdf-textLayer'))))) schedule()
+        })
+        observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-search-page'] })
+        const resize = new ResizeObserver(schedule)
+        resize.observe(root)
+        const popup = root.closest('.dsr-root')?.querySelector('.dsr-search')
+        if (popup) resize.observe(popup)
+        root.addEventListener('dsr-position-restored', schedule)
+        for (const name of ['wheel','pointerdown','touchstart','keydown']) root.addEventListener(name, interrupt, { passive: true })
+        schedule()
+        return () => { stopped = true; observer.disconnect(); resize.disconnect(); root.removeEventListener('dsr-position-restored', schedule); for (const name of ['wheel','pointerdown','touchstart','keydown']) root.removeEventListener(name, interrupt); if(frame)cancelAnimationFrame(frame); clear() }
+      }, [scrollRef, hit, pendingPositionRef, onStatus, readyKey])
     }
 
     function readStore(key, fallback) {
@@ -1555,6 +1704,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const block = doc.blocks?.[blockId]
       if (block === undefined || doc.pages.length === 0) return undefined
       const pageIndex = Math.min(doc.pages.length - 1, Math.max(0, Number(block.page) || 0))
+      const physical = doc.pages[pageIndex]?.pdfPage
+      if (Number.isInteger(physical) && physical >= 1 && physical <= pdfPageCount) return physical
       const label = doc.pages[pageIndex]?.label ?? ''
       const match = label.match(/第\s*(\d+)\s*[页张]/) ?? label.match(/Page\s*(\d+)/i)
       if (match !== null) {
@@ -2770,7 +2921,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     }
 
-    function SearchDialog({ doc, t, onJump, onClose }) {
+    function SearchDialog({ doc, t, onJump, onClose, onQuery, positionStatus }) {
       const [query, setQuery] = useState('')
       const [active, setActive] = useState(0)
       const [browsing, setBrowsing] = useState(false)
@@ -2785,7 +2936,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         const next = (index + results.length) % results.length
         setActive(next)
         setBrowsing(true)
-        onJump(results[next].blockId)
+        onJump(results[next])
         resultRef.current?.focus({ preventScroll: true })
       }
       useEffect(() => {
@@ -2804,13 +2955,13 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const meta = !searchable ? t('searchNoText') : query.trim() === '' ? t('searchEmpty') : !results.length ? t('searchNoResult')
         : tr(t, 'searchResults', { n: results.length }) + (results.length >= SEARCH_RESULT_LIMIT ? ' · ' + t('searchMore') : '')
       return h('div', { className: 'dsr-search-layer', onMouseDown: event => { if (event.target === event.currentTarget) onClose() } },
-        h('div', { ref: panelRef, className: 'dsr-search', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('search'), onKeyDown },
+        h('div', { ref: panelRef, className: cls('dsr-search', browsing && 'is-browsing'), role: 'dialog', 'aria-modal': 'true', 'aria-label': t('search'), onKeyDown },
           h('div', { className: 'dsr-search-head' },
             h(Icon, { name: 'search', size: 14 }),
             h('input', {
               ref: inputRef, className: 'dsr-search-input', value: query,
               onFocus: () => setBrowsing(false),
-              onChange: event => { setQuery(event.target.value); setActive(0); setBrowsing(false) },
+              onChange: event => { setQuery(event.target.value); setActive(0); setBrowsing(false); onQuery() },
               onKeyDown: event => {
                 if (event.key !== 'Enter' || event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey) return
                 event.preventDefault(); event.stopPropagation(); choose(active)
@@ -2820,6 +2971,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             h('button', { type: 'button', className: 'dsr-icon-btn', onClick: onClose, title: t('close'), 'aria-label': t('close') }, h(Icon, { name: 'close', size: 13 }))
           ),
           h('div', { className: 'dsr-search-meta' }, meta),
+          positionStatus ? h('div', { className: 'dsr-search-meta', role: 'status' }, t(positionStatus)) : null,
           h('div', { className: 'dsr-search-meta', 'aria-live': 'polite' }, t(browsing ? 'searchBrowseKeys' : 'searchInputKeys')),
           h('div', { className: 'dsr-search-list', ref: resultRef, tabIndex: -1, 'aria-label': t('search') },
             results.map((result, index) => h('button', {
@@ -3074,6 +3226,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           }
           setRendering(true)
           setError('')
+          if (textLayerRef.current) delete textLayerRef.current.dataset.searchPage
           try {
             const page = await pdfApi.pdf.getPage(pageNumber)
             if (cancelled) return
@@ -3126,9 +3279,14 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             await textLayer.task.render()
             if (cancelled || textLayerRef.current !== textLayerElement) return
             textLayer.commit(textLayerElement)
+            textLayerElement.dataset.searchPage = String(pageNumber)
           } catch (renderError) {
             if (cancelled) return
             if (renderError?.name === 'RenderingCancelledException') return
+            if (textLayerRef.current) {
+              textLayerRef.current.replaceChildren()
+              textLayerRef.current.dataset.searchPage = String(pageNumber)
+            }
             setError(renderError instanceof Error ? renderError.message : String(renderError))
           } finally {
             if (startedRef.current === runToken) startedRef.current = null
@@ -3159,6 +3317,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           startRenderRef.current = null
           if (startedRef.current === runToken) startedRef.current = null
           if (timer !== 0) window.clearTimeout(timer)
+          if (textLayerRef.current) delete textLayerRef.current.dataset.searchPage
           pendingTimerRef.current = 0
           try { imageController?.abort() } catch { /* ignore */ }
           try { renderTaskRef.current?.cancel() } catch { /* ignore */ }
@@ -3428,7 +3587,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     // ── original view ────────────────────────────────────────────────────────
 
-    function OriginalView({ doc, t, pdfjsInfo, onSelect, onPositionBlock, onPageChange, jumpRequest, onEngine, annotations, onEditNote, onBookmark, onNotes, controlsRef }) {
+    function OriginalView({ doc, t, pdfjsInfo, onSelect, onPositionBlock, onPageChange, jumpRequest, onEngine, annotations, onEditNote, onBookmark, onNotes, controlsRef, searchHit, onSearchStatus }) {
       const marksByPage = useMemo(() => { const map = new Map(); for (const item of annotations) { if (!map.has(item.pdfPage)) map.set(item.pdfPage, []); map.get(item.pdfPage).push(item) } return map }, [annotations])
       const [status, setStatus] = useState('loading')
       const [error, setError] = useState('')
@@ -3556,9 +3715,12 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           root.scrollTo({ top: Math.max(0, root.scrollTop + rect.top - view.top - 16 + position.y * rect.height), left: Math.max(0, root.scrollLeft + rect.left - view.left - 16 + position.x * rect.width), behavior: 'auto' })
           pendingPositionRef.current = null
           restoringRef.current = false
+          root.dispatchEvent(new Event('dsr-position-restored'))
         })
         return () => cancelAnimationFrame(frame)
       }, [navigation, width, pageNumber, mode, status, rendering, pageSize, naturalSize])
+
+      useSearchMarks(scrollRef, searchHit, pendingPositionRef, onSearchStatus, status + ':' + mode)
 
       // Surface the active renderer to the panel-level diagnostics.
       useEffect(() => {
@@ -3740,6 +3902,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         let imageController = null
         setRendering(true)
         setError('')
+        if (textLayerRef.current) delete textLayerRef.current.dataset.searchPage
         const run = async () => {
           try {
             const page = await pdfApi.pdf.getPage(pageNumber)
@@ -3801,11 +3964,16 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             await textLayer.task.render()
             if (cancelled || textLayerRef.current !== textLayerElement) return
             textLayer.commit(textLayerElement)
+            textLayerElement.dataset.searchPage = String(pageNumber)
             setPageSize({ width: viewport.width, height: viewport.height })
             setPageDraft(String(pageNumber))
           } catch (renderError) {
             if (cancelled) return
             if (renderError?.name === 'RenderingCancelledException') return
+            if (textLayerRef.current) {
+              textLayerRef.current.replaceChildren()
+              textLayerRef.current.dataset.searchPage = String(pageNumber)
+            }
             setError(renderError instanceof Error ? renderError.message : String(renderError))
           } finally {
             if (!cancelled) setRendering(false)
@@ -4226,6 +4394,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const [tocOpen, setTocOpen] = useState(false)
       const [expandedToc, setExpandedToc] = useState(() => new Set())
       const [searchOpen, setSearchOpen] = useState(false)
+      const [searchHit, setSearchHit] = useState(null)
+      const [searchPositionStatus, setSearchPositionStatus] = useState('')
       const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
       const [annotations, setAnnotations] = useState([])
       const annotationsRevisionRef = useRef(0)
@@ -4264,6 +4434,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       useEffect(() => {
         setExpandedToc(new Set())
         setQuestionDraft('')
+        setSearchHit(null)
+        setSearchPositionStatus('')
         setSearchOpen(false)
         setEngine('')
       }, [doc?.id])
@@ -4937,6 +5109,18 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         setJumpRequest(previous => ({ blockId, token: (previous?.token ?? 0) + 1 }))
       }, [])
 
+      const jumpToSearch = useCallback(result => {
+        const physical = doc?.pages[result.page]?.pdfPage
+        const pageNumber = Number.isInteger(physical) && physical >= 1 && physical <= pdfPageCount ? physical : pdfPageForBlock(doc, result.blockId, pdfPageCount)
+        if (!pageNumber) return
+        const token = uid()
+        setSelection(null)
+        setSearchPositionStatus('searchPositionLoading')
+        setSearchHit({ pageNumber, query: result.query, context: result.context, token, approximate: doc.extension !== 'pdf' && physical !== pageNumber })
+        setPositionBlock(result.blockId)
+        setJumpRequest(previous => ({ pageNumber, blockId: result.blockId, token: (previous?.token ?? 0) + 1 }))
+      }, [doc, pdfPageCount])
+
       const readPage = useCallback((page, blockId) => {
         if (doc?.extension !== 'pdf' && Number.isInteger(blockId)) {
           scrollToBlock(blockId)
@@ -5073,7 +5257,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                   onPositionBlock: onPdfPosition,
                   onPageChange: onPdfPage,
                   jumpRequest,
-                  annotations, onEditNote: editAnnotation, controlsRef: readerControlsRef,
+                  annotations, onEditNote: editAnnotation, controlsRef: readerControlsRef, searchHit, onSearchStatus: setSearchPositionStatus,
                   onBookmark: page => setNotesDialog({initial:{type:"bookmark",pdfPage:page,note:"",tags:[],quote:""}}),
                   onNotes: () => setNotesDialog({initial:null}),
                 })
@@ -5192,7 +5376,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           setSelection(null);setJumpRequest(previous => ({pageNumber:item.pdfPage,crop:item.crop,token:(previous?.token??0)+1}))
         } }) : null,
         searchOpen && doc !== null
-          ? h(SearchDialog, { doc, t, onJump: scrollToBlock, onClose: () => setSearchOpen(false) })
+          ? h(SearchDialog, { doc, t, onJump: jumpToSearch, onQuery: () => { setSearchHit(null); setSearchPositionStatus('') }, positionStatus: searchPositionStatus, onClose: () => setSearchOpen(false) })
           : null,
         h(Diagnostics, {
           open: diagnosticsOpen,
