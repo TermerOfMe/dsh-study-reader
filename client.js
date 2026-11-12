@@ -1410,6 +1410,55 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       canvas.style.height = `${viewport.height}px`
     }
 
+    // Build selectable text off-document. PDF.js interleaves span insertion
+    // with font measurements on a canvas attached to document.body. Doing that
+    // in the live layer forces repeated global style recalculation in DSH.
+    // Keep the same span nodes/styles, then commit once after cancellation is
+    // checked. Bounded stream chunks also give input/cancellation a turn on
+    // dense pages, without discarding neighbouring pages' selectable text.
+    function prepareTextLayer(pdfjs, textContent, viewport) {
+      const container = document.createElement('div')
+      container.className = 'dsr-pdf-textLayer'
+      container.style.setProperty('--scale-factor', String(viewport.scale))
+      container.style.setProperty('--total-scale-factor', String(viewport.scale))
+      let offset = 0
+      let stopped = false
+      const source = new ReadableStream({
+        async pull(controller) {
+          await new Promise(resolve => window.setTimeout(resolve, 0))
+          if (stopped) return
+          const end = Math.min(offset + 128, textContent.items.length)
+          controller.enqueue({
+            items: textContent.items.slice(offset, end),
+            styles: textContent.styles,
+            lang: textContent.lang,
+          })
+          offset = end
+          if (offset === textContent.items.length) controller.close()
+        },
+        cancel() { stopped = true },
+      }, { highWaterMark: 0 })
+      const task = new pdfjs.TextLayer({
+        textContentSource: source,
+        container,
+        viewport,
+      })
+      // TextLayer's constructor overwrites width/height with round() CSS
+      // expressions. Pin the exact viewport box afterwards, including rotated
+      // pages and hosts without PDF.js viewer scale-round variables.
+      container.style.width = `${viewport.width}px`
+      container.style.height = `${viewport.height}px`
+      return {
+        task,
+        commit(target) {
+          target.style.cssText = container.style.cssText
+          const fragment = document.createDocumentFragment()
+          while (container.firstChild !== null) fragment.append(container.firstChild)
+          target.replaceChildren(fragment)
+        },
+      }
+    }
+
     // Inverse of blockForPdfPage for TOC / "read ahead" jumps in the original
     // view. PDF pages usually carry a readable label ("第 N 页" / "第 N 张");
     // for Office-derived PDFs without one, fall back to the proportional
@@ -2846,7 +2895,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     // only rasterized while the IntersectionObserver marks them near the
     // viewport, so a long PDF does not allocate dozens of full-page canvases.
     const ContinuousPage = React.memo(function ContinuousPage({
-      pdfApi, doc, pageNumber, pageWidth, defaultHeight, active, current, distance, registerPage, onEngine, t,
+      pdfApi, doc, pageNumber, pageWidth, defaultHeight, active, current, adjacent, registerPage, onEngine, t,
     }) {
       const hostRef = useRef(null)
       const canvasRef = useRef(null)
@@ -2862,8 +2911,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const startedRef = useRef(null)
       const currentRef = useRef(current)
       currentRef.current = current
-      const distanceRef = useRef(distance)
-      distanceRef.current = distance
+      const adjacentRef = useRef(adjacent)
+      adjacentRef.current = adjacent
       const docRef = useRef(doc)
       docRef.current = doc
       const [size, setSize] = useState(null)
@@ -2924,6 +2973,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             textLayerElement.style.setProperty('--total-scale-factor', String(viewport.scale))
             if (image !== null) {
               await paintPageImage(canvas, image, viewport)
+              if (cancelled) return
               painted = true
               setSize({ width: viewport.width, height: viewport.height })
             } else {
@@ -2955,15 +3005,11 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             }
             const textContent = await page.getTextContent()
             if (cancelled) return
-            const textLayer = new pdfApi.pdfjs.TextLayer({
-              textContentSource: textContent,
-              container: textLayerElement,
-              viewport,
-            })
-            textLayerElement.style.width = `${viewport.width}px`
-            textLayerElement.style.height = `${viewport.height}px`
-            textLayerApiRef.current = textLayer
-            await textLayer.render()
+            const textLayer = prepareTextLayer(pdfApi.pdfjs, textContent, viewport)
+            textLayerApiRef.current = textLayer.task
+            await textLayer.task.render()
+            if (cancelled || textLayerRef.current !== textLayerElement) return
+            textLayer.commit(textLayerElement)
           } catch (renderError) {
             if (cancelled) return
             if (renderError?.name === 'RenderingCancelledException') return
@@ -2988,7 +3034,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           // rather than making every neighbour wait the full delay; pages
           // two away stay lazy so a normal page turn does not launch five
           // PDFium renders at once.
-          const delay = Math.abs(distanceRef.current) <= 1 ? 120 : CONTINUOUS_NEIGHBOUR_DELAY
+          const delay = adjacentRef.current ? 120 : CONTINUOUS_NEIGHBOUR_DELAY
           timer = window.setTimeout(() => { void run() }, delay)
           pendingTimerRef.current = timer
         }
@@ -3069,23 +3115,6 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           return next
         })
       }, [pageNumber])
-
-      // Warm up the current page as soon as the pager/TOC selects it, before
-      // the scroll settles and before any neighbouring page starts. PDFs are
-      // rasterized by the host, so the text layer is the only PDF.js work on
-      // the critical path: prefetching the operator list would decode every
-      // full-page scan image and stall the shared worker instead.
-      useEffect(() => {
-        if (pdfApi === null || pageNumber <= 0) return
-        const hostRasterized = docRef.current?.extension === 'pdf'
-        void (async () => {
-          try {
-            const page = await pdfApi.pdf.getPage(pageNumber)
-            if (hostRasterized) await page.getTextContent()
-            else await page.getOperatorList()
-          } catch { /* the page may already be gone */ }
-        })()
-      }, [pdfApi, pageNumber])
 
       useEffect(() => {
         let cancelled = false
@@ -3268,7 +3297,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             defaultHeight,
             active: activePages.has(number) || (number >= nearbyFrom && number <= nearbyTo),
             current: number === pageNumber,
-            distance: number - pageNumber,
+            adjacent: Math.abs(number - pageNumber) === 1,
             registerPage,
             onEngine,
             t,
@@ -3507,6 +3536,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             textLayerElement.style.setProperty('--total-scale-factor', String(viewport.scale))
             if (image !== null) {
               await paintPageImage(canvas, image, viewport)
+              if (cancelled) return
               setPageSize({ width: viewport.width, height: viewport.height })
             } else {
               // Supersample on ordinary 1x displays and render at native
@@ -3545,19 +3575,11 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             }
             const textContent = await page.getTextContent()
             if (cancelled) return
-            const textLayer = new pdfApi.pdfjs.TextLayer({
-              textContentSource: textContent,
-              container: textLayerElement,
-              viewport,
-            })
-            // Pin the text layer to the exact canvas box even on engines that
-            // do not support CSS round(); PDF.js only needs the CSS scale
-            // variables for glyph sizing after that.
-            textLayerElement.style.width = `${viewport.width}px`
-            textLayerElement.style.height = `${viewport.height}px`
-            textLayerApiRef.current = textLayer
-            await textLayer.render()
-            if (cancelled) return
+            const textLayer = prepareTextLayer(pdfApi.pdfjs, textContent, viewport)
+            textLayerApiRef.current = textLayer.task
+            await textLayer.task.render()
+            if (cancelled || textLayerRef.current !== textLayerElement) return
+            textLayer.commit(textLayerElement)
             setPageSize({ width: viewport.width, height: viewport.height })
             setPageDraft(String(pageNumber))
           } catch (renderError) {
