@@ -77,6 +77,20 @@ const llm = {
     return []
   },
   stream(options) {
+    if (options.messages?.[0]?.content?.[0]?.text?.includes('ADAPTIVE_TEST')) {
+      const results = options.messages.filter(message => message.role === 'tool')
+      if (results.length < 2) {
+        const name = results.length ? 'document_read' : 'document_search'
+        const args = results.length ? { pages: [1], format: 'text', offset: 0, crop: null, reason: 'Verify source' }
+          : { query: 'Hello', offset: 0, reason: 'Find definition' }
+        return asyncChunks([
+          { type: 'text-delta', text: 'Provisional tool preamble' },
+          { type: 'block-end', index: 1, block: { type: 'tool-call', id: `read${results.length}`, name, arguments: JSON.stringify(args) } },
+          { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } },
+          { type: 'finish', reason: { kind: 'tool-calls' } },
+        ])
+      }
+    }
     if (typeof options.system === 'string' && options.system.includes('阅读助手')) {
       return asyncChunks([
         { type: 'text-delta', text: '{"pages":[]}' },
@@ -220,6 +234,19 @@ try {
       await thumbnail.arrayBuffer()
     }
   }
+
+  const adaptive = await post('/ask', { docId: doc.id, question: 'ADAPTIVE_TEST', mode: 'learn', currentPage: 1, blockId: fullDoc.blocks.length - 1 })
+  const adaptiveFrames = adaptive.text.trim().split('\n').map(line => JSON.parse(line))
+  expect(adaptiveFrames.filter(frame => frame.type === 'resetText').length === 2, 'tool preambles should be reset')
+  expect(adaptiveFrames.filter(frame => frame.type === 'reading').length === 2, 'both search and read should be visible')
+  const adaptiveMeta = adaptiveFrames.find(frame => frame.type === 'meta')
+  const adaptiveDetail = await getJson(`/context?id=${doc.id}&entry=${adaptiveMeta.contextId}`)
+  const adaptiveEntry = adaptiveDetail.body.entry
+  expect(adaptiveEntry.calls.length === 3, 'context should retain all three native turns')
+  expect(adaptiveEntry.calls[0].messages.length === 1, 'early audit must not grow with continuation messages')
+  expect(adaptiveEntry.usage.inputTokens === 140, 'usage should include both reading calls and final answer')
+  expect(fullDoc.blocks[adaptiveEntry.notes.anchor].page === 0, 'learning anchor should clamp to actual visible page')
+  expect(adaptiveEntry.reading.length === 2, 'context should retain reading trace')
 
   const translated = await post('/translate', {
     docId: doc.id,

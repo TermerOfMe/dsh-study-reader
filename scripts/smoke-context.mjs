@@ -64,7 +64,7 @@ const built = buildAskPrompt({
   anchorId: 1,
   question: 'What is hello?',
   selection: 'Hello world.',
-  history: [{ role: 'user', content: 'Earlier' }],
+  history: [{ role: 'user', content: 'Earlier' }, { role: 'assistant', content: 'Earlier answer' }],
   options: {},
 })
 expect(built.stats.contextChars > 0, 'ask prompt should report context size')

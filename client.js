@@ -177,7 +177,18 @@ globalThis.__ModuleLoader__.load({
         contextImages: '附带图片',
         contextNoImages: '没有附带图片',
         contextChars: '文档上下文',
-        contextTokens: '估算输入',
+        contextTokens: '估算文本输入（不含图片）',
+        contextReading: '阅读记录',
+        contextCalls: '模型调用',
+        contextCallCount: '调用次数',
+        contextInputBudget: '输入预算',
+        readingAction: '操作',
+        readingOutline: '查看目录',
+        readingSearch: '搜索文档',
+        readingRead: '读取页面',
+        readingReason: '目的',
+        readingSummary: '结果',
+        readingEmpty: '暂无记录',
         contextHistory: '历史对话',
         contextTrimmed: '上下文截断',
         contextBrief: '全书概览',
@@ -396,7 +407,18 @@ globalThis.__ModuleLoader__.load({
         contextImages: 'Attached images',
         contextNoImages: 'No images attached',
         contextChars: 'Document context',
-        contextTokens: 'Estimated input',
+        contextTokens: 'Estimated text input',
+        contextReading: 'Reading log',
+        contextCalls: 'Model calls',
+        contextCallCount: 'Call count',
+        contextInputBudget: 'Input budget',
+        readingAction: 'Action',
+        readingOutline: 'Browse outline',
+        readingSearch: 'Search document',
+        readingRead: 'Read pages',
+        readingReason: 'Purpose',
+        readingSummary: 'Result',
+        readingEmpty: 'No records yet',
         contextHistory: 'Conversation history',
         contextTrimmed: 'Context trimmed',
         contextBrief: 'Book brief',
@@ -644,7 +666,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-ctx-image img{display:block;width:100%;height:104px;object-fit:contain;border-radius:4px;background:var(--dsw-alias-bg-base)}
 .dsr-ctx-image-label{font-size:9.5px;line-height:1.35;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dsr-ctx-image-meta{font-size:8.5px;line-height:1.3;color:var(--dsw-alias-label-secondary);opacity:.75}
-.dsr-ctx-tabs{display:flex;gap:2px;margin:10px 0 6px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.dsr-ctx-tabs{display:flex;flex-wrap:wrap;gap:2px;margin:10px 0 6px;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .dsr-ctx-tab{appearance:none;border:0;background:transparent;padding:4px 8px;font-size:10px;color:var(--dsw-alias-label-secondary);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 .dsr-ctx-tab:hover{color:var(--dsw-alias-label-primary)}
 .dsr-ctx-tab.on{color:var(--dsw-alias-brand-primary);border-bottom-color:var(--dsw-alias-brand-primary);font-weight:600}
@@ -2157,6 +2179,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           : t('contextNoImages'))
         push(t('contextChars'), tr(t, 'chars', { n: localNumber(stats.contextChars) }))
         push(t('contextTokens'), `≈ ${localNumber(stats.estimatedTokens)} tokens`)
+        if (Array.isArray(data.calls)) push(t('contextCallCount'), data.calls.length)
+        if (Number(notes.inputBudgetTokens) > 0) push(t('contextInputBudget'), `${localNumber(notes.inputBudgetTokens)} tokens`)
         push(t('contextHistory'), Number(notes.historyChars) > 0 ? tr(t, 'chars', { n: localNumber(notes.historyChars) }) : '—')
         if (data.kind === 'ask' && data.mode !== 'overview') push(t('contextTrimmed'), notes.trimmed ? t('contextYes') : t('contextNo'))
         if (data.kind === 'ask' && data.mode !== 'overview') push(t('contextBrief'), notes.briefInjected ? t('contextOverviewInjected') : t('contextOverviewNo'))
@@ -2176,7 +2200,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
       const copyAll = () => {
         if (data === null) return
-        const text = `# ${t('contextSystem')}\n${data.system}\n\n# ${t('contextUser')}\n${data.prompt}`
+        const text = `# ${t('contextSystem')}\n${data.system}\n\n# ${t('contextUser')}\n${data.prompt}\n\n# ${t('contextReading')}\n${JSON.stringify(data.reading ?? [], null, 2)}\n\n# ${t('contextCalls')}\n${JSON.stringify(data.calls ?? [], null, 2)}`
         void copyText(text).then(ok => onToast?.(ok ? t('contextCopied') : t('copyFailed')))
       }
 
@@ -2255,9 +2279,20 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                     'aria-selected': tab === 'system',
                     className: cls('dsr-ctx-tab', tab === 'system' && 'on'),
                     onClick: () => setTab('system'),
-                  }, t('contextSystem'))
+                  }, t('contextSystem')),
+                  ...[['reading', 'contextReading'], ['calls', 'contextCalls']].map(([key, label]) => h('button', {
+                    key,
+                    type: 'button',
+                    role: 'tab',
+                    'aria-selected': tab === key,
+                    className: cls('dsr-ctx-tab', tab === key && 'on'),
+                    onClick: () => setTab(key),
+                  }, t(label)))
                 ),
-                h('pre', { className: 'dsr-ctx-text' }, tab === 'system' ? data.system : data.prompt),
+                h('pre', { className: 'dsr-ctx-text', role: 'tabpanel' },
+                  tab === 'calls' || tab === 'reading'
+                    ? JSON.stringify(data[tab] ?? [], null, 2)
+                    : tab === 'system' ? data.system : data.prompt),
                 h('div', { className: 'dsr-fold-actions' },
                   h('button', { type: 'button', className: 'dsr-mini-btn', onClick: copyAll },
                     h(Icon, { name: 'copy', size: 12 }), t('contextCopyAll'))
@@ -2269,7 +2304,35 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     }
 
-    const MessageBubble = React.memo(function MessageBubble({ message, t, docId, onAhead, onToast }) {
+    function ReadingLog({ entries, t, onReadPage }) {
+      if (!Array.isArray(entries) || entries.length === 0) return null
+      return h('details', { className: 'dsr-fold' },
+        h('summary', { className: 'dsr-fold-head' },
+          h('span', { className: 'dsr-fold-title' }, t('contextReading')),
+          h('span', { className: 'dsr-fold-meta' }, entries.length)),
+        h('div', { className: 'dsr-fold-body' }, entries.slice(-12).map((entry, index) => {
+          const pages = [...new Set((Array.isArray(entry.pages) ? entry.pages : []).map(Number).filter(page => Number.isInteger(page) && page > 0))]
+          const actionKey = { document_outline: 'readingOutline', document_search: 'readingSearch', document_read: 'readingRead' }[entry.action]
+          return h('div', { key: entry.id ?? index, style: { marginBottom: 10 } },
+            h('div', { className: 'dsr-ctx-section-title' },
+              `${index + 1}. ${actionKey ? t(actionKey) : entry.action || t('readingAction')}`,
+              entry.status ? ` · ${t(CONTEXT_STATUS[entry.status] ?? 'contextStatusStreaming')}` : '',
+              Number(entry.durationMs) > 0 ? ` · ${(entry.durationMs / 1000).toFixed(1)} s` : ''),
+            entry.reason ? h('div', { style: { whiteSpace: 'pre-wrap' } }, `${t('readingReason')}: ${entry.reason}`) : null,
+            entry.summary ? h('div', { style: { whiteSpace: 'pre-wrap' } }, `${t('readingSummary')}: ${entry.summary}`) : null,
+            entry.error ? h('div', { className: 'dsr-error-box' }, String(entry.error)) : null,
+            h('div', { className: 'dsr-fold-actions', style: { flexWrap: 'wrap', justifyContent: 'flex-start' } }, pages.map(page => h('button', {
+              key: page,
+              type: 'button',
+              className: 'dsr-mini-btn',
+              onClick: () => onReadPage?.(page, entry.locations?.find(location => Number(location.page) === page)?.blockId),
+            }, tr(t, 'pageShort', { n: page }))))
+          )
+        }))
+      )
+    }
+
+    const MessageBubble = React.memo(function MessageBubble({ message, t, docId, onAhead, onReadPage, onToast }) {
       const isUser = message.role === 'user'
       const modeLabel = message.mode === 'reread' ? t('modeReread') : t('modeLearn')
       return h('div', { className: cls('dsr-msg', isUser ? 'dsr-msg-user' : 'dsr-msg-assistant') },
@@ -2305,6 +2368,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               ) : null,
               message.error ? h('div', { className: 'dsr-error-box' }, h('strong', null, `${t('errorPrefix')}: `), message.error) : null,
               message.aborted ? h('div', { className: 'dsr-error-box' }, t('answerStopped')) : null,
+              h(ReadingLog, { entries: message.reading, t, onReadPage }),
               h(ContextBlock, {
                 docId,
                 contextId: message.contextId,
@@ -2318,7 +2382,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     })
 
-    function ChatBody({ t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote, onClear, empty, onAhead, scrollRef, docId, onToast }) {
+    function ChatBody({ t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote, onClear, empty, onAhead, onReadPage, scrollRef, docId, onToast }) {
       const [draft, setDraft] = useState('')
       const inputRef = useRef(null)
       const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined
@@ -2382,7 +2446,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               h('div', { className: 'dsr-mode-hint' }, mode === 'reread' ? t('emptyChatReread') : t('emptyChatLearning'))
             )
             : h('div', { className: 'dsr-chat-list' },
-              messages.map(message => h(MessageBubble, { key: message.id, message, t, docId, onAhead, onToast }))
+              messages.map(message => h(MessageBubble, { key: message.id, message, t, docId, onAhead, onReadPage, onToast }))
             )
         ),
         h('div', { className: 'dsr-composer' },
@@ -2501,7 +2565,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     function SidePanel({
       doc, t, mode, setMode, panelTab, setPanelTab, messages, busy, onSend, onStop,
-      quote, onClearQuote, onClearChat, onAhead, translations, targetLanguage, setTargetLanguage,
+      quote, onClearQuote, onClearChat, onAhead, onReadPage, translations, targetLanguage, setTargetLanguage,
       onClearTranslations, onTranslateAgain, onToast, onClose, modelAvailable, positionLabel, chatOpen,
     }) {
       const chatScroll = useRef(null)
@@ -2534,7 +2598,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               : null,
             h(ChatBody, {
               t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote,
-              onClear: onClearChat, onAhead, scrollRef: chatScroll,
+              onClear: onClearChat, onAhead, onReadPage, scrollRef: chatScroll,
               docId: doc?.id ?? '', onToast,
             })
           )
@@ -3366,7 +3430,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         if (status !== 'ready' || pageCount <= 0) return
         if (jumpRequest.token === jumpTokenRef.current) return
         jumpTokenRef.current = jumpRequest.token
-        const target = pdfPageForBlock(doc, jumpRequest.blockId, pageCount)
+        const requestedPage = Number(jumpRequest.pageNumber)
+        const target = Number.isInteger(requestedPage) && requestedPage >= 1 && requestedPage <= pageCount
+          ? requestedPage
+          : pdfPageForBlock(doc, jumpRequest.blockId, pageCount)
         if (target === undefined) return
         onSelectRef.current?.(null)
         setPageNumber(target)
@@ -4154,12 +4221,24 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         const history = messages
           .filter(message => message.pending !== true && message.error === undefined && message.aborted !== true)
           .slice(-10)
-          .map(message => ({ role: message.role, content: message.text }))
+          .map(message => ({
+            role: message.role,
+            content: message.text,
+            quote: message.quote ?? '',
+            page: message.page ?? message.pdfPage ?? null,
+            blockId: message.blockId ?? null,
+            pdfPage: message.pdfPage ?? null,
+            crop: message.crop ?? null,
+          }))
         const userMessage = {
           id: uid(),
           role: 'user',
           text: clean,
           quote: quote?.text || (quote?.crop ? t('quoteRegion') : null),
+          page: quote?.pdfPage ?? activePage + 1,
+          pdfPage: quote?.pdfPage ?? null,
+          blockId: quote?.blockId ?? positionBlock,
+          crop: quote?.crop ?? null,
           time: Date.now(),
           mode,
         }
@@ -4246,6 +4325,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             selection: quote?.text ?? '',
             selectionCrop: quote?.crop ?? null,
             selectionPage: quote?.pdfPage ?? null,
+            currentPage: activePage + 1,
             history,
             overview: options.overview === true,
           }, controller.signal, frame => {
@@ -4266,9 +4346,18 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             } else if (frame.type === 'delta') {
               pendingText += frame.text
               scheduleFlush()
+            } else if (frame.type === 'resetText') {
+              stopFlush()
+              setMessages(previous => previous.map(message => message.id === assistantId
+                ? { ...message, text: '', ahead: null }
+                : message))
             } else if (frame.type === 'status') {
               setMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, status: frame.text }
+                : message))
+            } else if (frame.type === 'reading' && frame.entry !== null && typeof frame.entry === 'object') {
+              setMessages(previous => previous.map(message => message.id === assistantId
+                ? { ...message, reading: [...(Array.isArray(message.reading) ? message.reading : []), frame.entry].slice(-12) }
                 : message))
             } else if (frame.type === 'pages') {
               setMessages(previous => previous.map(message => message.id === assistantId
@@ -4320,7 +4409,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           if (askAbortRef.current === controller) askAbortRef.current = null
           setBusy(false)
         }
-      }, [busy, doc, messages, mode, positionBlock, setChatOpenPersisted, t])
+      }, [busy, doc, messages, mode, positionBlock, activePage, setChatOpenPersisted, t])
 
       const stopQuestion = useCallback(() => {
         askAbortRef.current?.abort()
@@ -4513,6 +4602,19 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         setJumpRequest(previous => ({ blockId, token: (previous?.token ?? 0) + 1 }))
       }, [])
 
+      const readPage = useCallback((page, blockId) => {
+        if (doc?.extension !== 'pdf' && Number.isInteger(blockId)) {
+          scrollToBlock(blockId)
+          return
+        }
+        const pageNumber = Number(page)
+        if (!Number.isInteger(pageNumber) || pageNumber < 1) return
+        setTocOpen(false)
+        setSelection(null)
+        if (Number.isInteger(blockId)) setPositionBlock(blockId)
+        setJumpRequest(previous => ({ pageNumber, blockId, token: (previous?.token ?? 0) + 1 }))
+      }, [doc?.extension, scrollToBlock])
+
       const chatVisible = doc !== null && chatOpen
 
       const problems = []
@@ -4598,6 +4700,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               quote: pendingQuote, onClearQuote: () => setPendingQuote(null),
               onClearChat: clearChat,
               onAhead: scrollToBlock,
+              onReadPage: readPage,
               translations, targetLanguage, setTargetLanguage: setTargetLanguagePersisted,
               onClearTranslations: clearTranslations, onTranslateAgain: retranslate,
               onToast: showToast,
