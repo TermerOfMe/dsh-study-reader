@@ -7,11 +7,24 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Planned
-- Zoom controls and a persisted reading position per document.
-- Bookmarks and notes attached to PDF pages.
+- Persisted reading position per document.
 - Print / export of the original document.
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
+
+## [1.15.0] - 2026-11-12
+
+### Added
+- 原貌阅读支持适合页宽、适合整页、25%–300% 缩放，保留高亮坐标；单页和连续页统一适用，支持混合横竖页面。
+- 阅读导航历史（最多 80 个位置），工具栏返回/前进、阅读区 Alt+←/→ 和鼠标侧键；返回时恢复页内相对位置，聊天编辑不受影响。
+- 回答引用可点击预览原文和页面图片，明确点击后才跳转；处理 B 块号、物理 PDF 页和原始幻灯片标签，拒绝无效引用，不猜测 Office 转换页映射。新提示要求关键结论附依据并区分原文与推导。
+- 页面书签、文字/区域高亮、带标签的批注，全书列表搜索、类型筛选、编辑、删除和跳转，页面小标记直接编辑；跨页文字高亮要求分开选择。
+- Host 文件持久化批注、按规范化绝对路径隔离、并发串行与原子替换、数据损坏保护；可选 annotationDirectory；共享 study_annotations 工具。
+- Office 转换后的页面可通过相同页面图片接口用于引用预览；较大缩放和异常长页面限制光栅像素数。
+
+### Verification
+- 新增批注持久化、工具适配与证据定位测试，以及 Host HTTP 保存/读取/删除、工具与界面互通、引用和越界回归。
+- 源码独立审查覆盖界面回调、引用与连续页位置恢复；工具环境没有浏览器控制能力，真实供应商引用输出和交互视觉效果仍待重启后实测。
 
 ## [1.14.1] - 2026-11-12
 

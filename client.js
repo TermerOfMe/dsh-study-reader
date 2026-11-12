@@ -266,6 +266,8 @@ globalThis.__ModuleLoader__.load({
         pageInput: '页码',
         pdfSelectionHint: '直接拖选文字；按住 Ctrl（Mac 为 ⌘）拖动可框选页面区域，作为截图引用。',
         originalNewTab: '新标签页打开原文件',
+        annotations: '书签与批注', bookmark: '添加书签', highlight: '高亮', addNote: '批注', editNote: '编辑批注', saveNote: '保存', deleteNote: '删除', noteText: '笔记', noteTags: '标签（逗号分隔）', noteFilter: '搜索原文、笔记或标签', notesEmpty: '还没有书签或批注。选中文字或框选区域即可添加。', notesSaved: '已保存到本机', notesFailed: '批注操作失败', noteDeleteConfirm: '删除这条书签或批注？', annotationType: '类型', allNotes: '全部', noQuote: '页面书签', pageBookmark: '本页书签', onePageOnly: '请在同一页内选择要高亮的文字。', evidenceTitle: '引用依据', evidenceHint: '以下是引用位置的原文，需结合上下文核对回答；定位成功不代表结论已被自动验证。', evidenceNoText: '此位置没有可提取文字，请核对页面图片。', evidenceTruncated: '预览已截取，请打开原文阅读完整上下文。', evidenceNoMapping: '这条引用对应原文文字单元，暂无法准确映射到转换后的 PDF 页。', evidenceJump: '跳到原文', evidenceFailed: '无法定位这条引用', evidenceImageFailed: '页面图片加载失败，可跳到原文查看。', noteLoading: '正在读取批注…',
+        zoomWidth: '适合页宽', zoomPage: '适合整页', zoomLabel: '缩放', navBack: '返回阅读位置（Alt+←）', navForward: '前进（Alt+→）',
         pdfPageOf: '第 {current} / {total} 页',
         pdfPageLabel: '第 {n} 页',
         pdfPages: '{n} 页',
@@ -496,6 +498,8 @@ globalThis.__ModuleLoader__.load({
         pageInput: 'Page number',
         pdfSelectionHint: 'Drag to select text; hold Ctrl (⌘ on Mac) and drag to quote a page region as an image.',
         originalNewTab: 'Open original in a new tab',
+        annotations: 'Bookmarks & notes', bookmark: 'Add bookmark', highlight: 'Highlight', addNote: 'Add note', editNote: 'Edit annotation', saveNote: 'Save', deleteNote: 'Delete', noteText: 'Note', noteTags: 'Tags (comma separated)', noteFilter: 'Search quote, note or tags', notesEmpty: 'No bookmarks or annotations yet. Select text or a region to add one.', notesSaved: 'Saved on this computer', notesFailed: 'Annotation operation failed', noteDeleteConfirm: 'Delete this bookmark or annotation?', annotationType: 'Type', allNotes: 'All', noQuote: 'Page bookmark', pageBookmark: 'Bookmark this page', onePageOnly: 'Select text within one page to highlight.', evidenceTitle: 'Source evidence', evidenceHint: 'Check the cited source and its context. Locating a source does not automatically verify the answer.', evidenceNoText: 'No extractable text here. Check the page image.', evidenceTruncated: 'Preview is shortened. Open the source for full context.', evidenceNoMapping: 'This source text unit has no exact page mapping in the converted PDF.', evidenceJump: 'Go to source', evidenceFailed: 'Cannot locate this reference', evidenceImageFailed: 'Page image unavailable. Open the source page to check.', noteLoading: 'Loading annotations…',
+        zoomWidth: 'Fit width', zoomPage: 'Fit page', zoomLabel: 'Zoom', navBack: 'Reading back (Alt+Left)', navForward: 'Reading forward (Alt+Right)',
         pdfPageOf: 'Page {current} / {total}',
         pdfPageLabel: 'Page {n}',
         pdfPages: '{n} pages',
@@ -631,7 +635,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-md hr{border:0;border-top:1px solid var(--dsw-alias-border-l1);margin:12px 0}
 .dsr-md table{border-collapse:collapse;width:100%;margin:0 0 10px;font-size:11.5px}
 .dsr-md td,.dsr-md th{border:1px solid var(--dsw-alias-border-l1);padding:5px 7px;text-align:left;vertical-align:top}
-.dsr-cite{display:inline-block;padding:0 4px;margin:0 1px;border-radius:4px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent);color:var(--dsw-alias-brand-primary);font-size:10.5px;font-weight:550;white-space:nowrap}
+.dsr-cite{appearance:none;border:0;font:inherit;cursor:pointer;display:inline-block;padding:0 4px;margin:0 1px;border-radius:4px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent);color:var(--dsw-alias-brand-primary);font-size:10.5px;font-weight:550;white-space:nowrap}
 .dsr-ahead{margin:10px 0 0;padding:10px;border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary) 26%,var(--dsw-alias-border-l1));border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 6%,var(--dsw-alias-bg-layer-1));font-size:11px;line-height:1.6;color:var(--dsw-alias-label-secondary)}
 .dsr-ahead-head{display:flex;align-items:center;gap:5px;font-weight:650;color:var(--dsw-alias-brand-primary);margin-bottom:3px;font-size:11px}
 .dsr-ahead p{margin:0 0 7px}
@@ -834,10 +838,11 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-pdf-scroll.dsr-selecting-region{cursor:crosshair;user-select:none;touch-action:none}
 .dsr-pdf-scroll.dsr-selecting-region .dsr-pdf-page,.dsr-pdf-scroll.dsr-selecting-region .dsr-pdf-textLayer{cursor:crosshair;user-select:none}
 .dsr-region-box{position:fixed;z-index:1300;border:1.5px solid var(--dsw-alias-brand-primary);border-radius:2px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 14%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-brand-primary) 35%,transparent) inset;pointer-events:none}
-.dsr-pdf-stage{min-height:100%;display:flex;justify-content:center;align-items:flex-start}
+.dsr-pdf-stage{min-height:100%;display:flex;justify-content:safe center;align-items:flex-start;width:max-content;min-width:100%}
 .dsr-pdf-mode{display:inline-flex;align-items:center;gap:2px;flex:none;padding:2px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;background:var(--dsw-alias-bg-layer-2)}
 .dsr-pdf-mode .dsr-seg-btn{height:22px;padding:0 8px;font-size:10.5px}
-.dsr-pdf-flow{min-height:100%;display:flex;flex-direction:column;align-items:center;gap:16px;padding:0 0 12px}
+.dsr-pdf-flow{min-height:100%;display:flex;flex-direction:column;align-items:center;gap:16px;padding:0 0 12px;width:max-content;min-width:100%}
+.dsr-zoom{display:flex;align-items:center;gap:3px;flex:none}.dsr-zoom select{max-width:100px;height:26px;font-size:10.5px}.dsr-original-bar{flex-wrap:wrap}.dsr-original-hint{min-width:60px}
 .dsr-pdf-page-block{position:relative;display:flex;flex-direction:column;align-items:flex-start;flex:none;scroll-margin-top:14px}
 .dsr-pdf-page-no{font-size:10px;line-height:1;color:var(--dsw-alias-label-secondary);margin:0 0 6px 2px;letter-spacing:.04em;user-select:none}
 .dsr-pdf-page-block.is-current .dsr-pdf-page-no{color:var(--dsw-alias-brand-primary)}
@@ -845,6 +850,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-pdf-page-placeholder{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:20px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:1.5;text-align:center;pointer-events:none}
 .dsr-pdf-page-placeholder .dsr-spinner{border-color:var(--dsw-alias-border-l2);border-top-color:var(--dsw-alias-label-primary)}
 .dsr-pdf-page{position:relative;flex:none;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 16%,transparent);overflow:hidden}
+.dsr-mark-layer{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}.dsr-mark{position:absolute;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 22%,transparent);border-bottom:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary) 60%,transparent)}.dsr-mark-note{position:absolute;pointer-events:auto;min-width:18px;height:19px;padding:0 3px;border:1px solid var(--dsw-alias-border-l2);border-radius:4px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-brand-primary);font-size:11px;cursor:pointer}.dsr-study-dialog{width:min(720px,100%);max-height:88vh;display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 20px 60px color-mix(in srgb,var(--dsw-alias-label-primary) 18%,transparent);overflow:hidden}.dsr-study-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--dsw-alias-border-l1)}.dsr-study-dialog-body{padding:16px;overflow:auto;min-height:0;font-size:12px;line-height:1.65}.dsr-study-dialog-body label{display:block;margin:10px 0 4px}.dsr-study-dialog-body textarea,.dsr-study-dialog-body input{width:100%;box-sizing:border-box;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:8px;font:inherit}.dsr-study-dialog-body textarea{min-height:130px;resize:vertical}.dsr-note-row{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:10px;margin:9px 0}.dsr-note-row blockquote,.dsr-evidence-quote{white-space:pre-wrap;margin:8px 0;padding:9px 11px;border-left:2px solid var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-2);max-height:240px;overflow:auto}.dsr-note-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:10px}.dsr-evidence-image{display:block;max-width:100%;height:auto;margin:12px auto;border:1px solid var(--dsw-alias-border-l1)}.dsr-note-meta{color:var(--dsw-alias-label-secondary);font-size:11px}.dsr-note-filter{display:flex;gap:8px}.dsr-note-filter input{flex:1;min-width:0}
 .dsr-pdf-canvas{display:block;position:absolute;inset:0;width:100%;height:100%;filter:var(--dsr-pdf-filter,none)}
 .dsr-pdf-textLayer{position:absolute;inset:0;overflow:clip;opacity:1;line-height:1;text-align:initial;letter-spacing:normal;word-spacing:normal;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;caret-color:CanvasText;z-index:2;--total-scale-factor:1;--min-font-size:1;--text-scale-factor:calc(var(--total-scale-factor) * var(--min-font-size));--min-font-size-inv:calc(1 / var(--min-font-size))}
 .dsr-pdf-textLayer span,.dsr-pdf-textLayer br{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%;user-select:text}
@@ -997,6 +1003,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const bottom = clamp((rect.top + rect.height - pageRect.top) / pageRect.height)
       if (right - x < 0.002 || bottom - y < 0.002) return undefined
       return { x, y, width: right - x, height: bottom - y }
+    }
+
+    function rectsForRange(page, range) {
+      return Array.from(range.getClientRects()).filter(rect=>rect.width>1&&rect.height>1).map(rect=>cropForRect(page,rect)).filter(Boolean)
     }
 
     /**
@@ -1626,30 +1636,37 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     // ── markdown ─────────────────────────────────────────────────────────────
 
-    const INLINE_RE = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|\[(?:第\s*\d+\s*[页张节]|B\d+)\])/g
+    const CitationContext = React.createContext(null)
+    function Citation({ token }) {
+      const open = React.useContext(CitationContext)
+      return open ? h('button', { type: 'button', className: 'dsr-cite', onClick: () => open(token), title: token }, token.slice(1,-1))
+        : h('span', { className: 'dsr-cite' }, token.slice(1,-1))
+    }
+    const INLINE_RE = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|\[(?:第\s*\d+\s*[页张]|B\d+)\])/g
 
     function inlineNodes(text, keyPrefix) {
       const nodes = []
       let last = 0
       let match
       let index = 0
-      while ((match = INLINE_RE.exec(text)) !== null) {
+      const pattern = new RegExp(INLINE_RE.source, 'g')
+      while ((match = pattern.exec(text)) !== null) {
         if (match.index > last) nodes.push(text.slice(last, match.index))
         const token = match[0]
         const key = `${keyPrefix}-i${index++}`
         if (token.startsWith('**') && token.endsWith('**')) {
-          nodes.push(h('strong', { key }, token.slice(2, -2)))
+          nodes.push(h('strong', { key }, inlineNodes(token.slice(2, -2), key)))
         } else if (token.startsWith('`') && token.endsWith('`')) {
           nodes.push(h('code', { key }, token.slice(1, -1)))
         } else if (token.startsWith('*') && token.endsWith('*')) {
-          nodes.push(h('em', { key }, token.slice(1, -1)))
+          nodes.push(h('em', { key }, inlineNodes(token.slice(1, -1), key)))
         } else if (token.startsWith('[') && token.includes('](')) {
           const link = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(token)
           if (link !== null) {
             nodes.push(h('a', { key, href: link[2], target: '_blank', rel: 'noreferrer noopener' }, link[1]))
           } else nodes.push(token)
         } else {
-          nodes.push(h('span', { key, className: 'dsr-cite' }, token.slice(1, -1)))
+          nodes.push(h(Citation, { key, token }))
         }
         last = match.index + token.length
       }
@@ -2902,7 +2919,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     // ── selection toolbar ────────────────────────────────────────────────────
 
-    function SelectionBar({ selection, t, targetLanguage, setTargetLanguage, onTranslate, onAsk, onExplain }) {
+    function SelectionBar({ selection, t, targetLanguage, setTargetLanguage, onTranslate, onAsk, onExplain, onHighlight, onNote }) {
       const [lang, setLang] = useState(targetLanguage)
       useEffect(() => { setLang(targetLanguage) }, [targetLanguage])
       const top = selection.rect.top > 82 ? selection.rect.top - 44 : selection.rect.bottom + 10
@@ -2924,6 +2941,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             setTargetLanguage(event.target.value)
           },
         }, TARGET_LANGUAGES.map(([value, zhLabel, enLabel]) => h('option', { key: value, value }, t('source') === 'Source' ? enLabel : zhLabel))),
+        h('button', { type: 'button', className: 'dsr-selection-btn', onMouseDown: keepSelection, onClick: onHighlight }, t('highlight')),
+        h('button', { type: 'button', className: 'dsr-selection-btn', onMouseDown: keepSelection, onClick: onNote }, t('addNote')),
         h('span', { className: 'dsr-selection-sep', 'aria-hidden': true }),
         h('button', { type: 'button', className: 'dsr-selection-btn', onMouseDown: keepSelection, onClick: onAsk },
           h(Icon, { name: 'chat', size: 13 }), t('selectionAsk')),
@@ -2934,7 +2953,6 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     // ── continuous original view ─────────────────────────────────────────────
 
-    const CONTINUOUS_PAGE_MAX_WIDTH = 1200
     const CONTINUOUS_PAGE_MAX_PIXELS = 9_000_000
     const PDFIUM_SUPERSAMPLE = 2
     // Give the page under the reading line a head start before neighbours
@@ -2959,7 +2977,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     // only rasterized while the IntersectionObserver marks them near the
     // viewport, so a long PDF does not allocate dozens of full-page canvases.
     const ContinuousPage = React.memo(function ContinuousPage({
-      pdfApi, doc, pageNumber, pageWidth, defaultHeight, active, current, adjacent, registerPage, onEngine, t,
+      pdfApi, doc, pageNumber, pageWidth, defaultHeight, active, current, adjacent, registerPage, onEngine, t, marks, onEditNote,
     }) {
       const hostRef = useRef(null)
       const canvasRef = useRef(null)
@@ -2983,7 +3001,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const [rendering, setRendering] = useState(false)
       const [error, setError] = useState('')
       const label = tr(t, 'pdfPageLabel', { n: pageNumber })
-      const height = size !== null && Math.abs(size.width - pageWidth) < 1 ? size.height : defaultHeight
+      const height = size !== null ? size.height * pageWidth / size.width : defaultHeight
 
       useEffect(() => {
         registerPage(pageNumber, hostRef.current)
@@ -3042,9 +3060,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               setSize({ width: viewport.width, height: viewport.height })
             } else {
               let ratio = Math.min(2, Math.max(1.5, window.devicePixelRatio || 1))
-              while (viewport.width * viewport.height * ratio * ratio > CONTINUOUS_PAGE_MAX_PIXELS && ratio > 1) {
-                ratio = Math.max(1, ratio * 0.85)
-              }
+              ratio = Math.min(ratio, Math.sqrt(CONTINUOUS_PAGE_MAX_PIXELS / (viewport.width * viewport.height)))
               canvas.width = Math.max(1, Math.floor(viewport.width * ratio))
               canvas.height = Math.max(1, Math.floor(viewport.height * ratio))
               canvas.style.width = `${viewport.width}px`
@@ -3140,6 +3156,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             ? h(React.Fragment, null,
               h('canvas', { ref: canvasRef, className: 'dsr-pdf-canvas', 'aria-hidden': true }),
               h('div', { ref: textLayerRef, className: 'dsr-pdf-textLayer' }),
+              h(AnnotationLayer, { marks, onEdit: onEditNote, t }),
               error !== ''
                 ? h('div', { className: 'dsr-pdf-page-placeholder' }, h(Icon, { name: 'alert', size: 13 }), h('span', null, error))
                 : rendering || size === null
@@ -3151,8 +3168,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     })
 
-    const ContinuousPdf = React.memo(function ContinuousPdf({ pdfApi, width, doc, pageCount, pageNumber, t, onSelect, onPageChange, onPositionBlock, onEngine, scrollRef }) {
-      const pageWidth = Math.min(width, CONTINUOUS_PAGE_MAX_WIDTH)
+    const ContinuousPdf = React.memo(function ContinuousPdf({ pdfApi, width, doc, pageCount, pageNumber, t, onSelect, onPageChange, onPositionBlock, onEngine, scrollRef, marksByPage, onEditNote, currentAspect }) {
+      const pageWidth = width
       const [defaultHeight, setDefaultHeight] = useState(() => Math.round(pageWidth * 1.414))
       const [activePages, setActivePages] = useState(() => new Set())
       const pageElementsRef = useRef(new Map())
@@ -3336,6 +3353,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             page: block.page,
             pdfPage: page,
             crop: cropForRect(host.querySelector('.dsr-pdf-page'), rect),
+            rects: rectsForRange(host.querySelector('.dsr-pdf-page'), range),
+            crossPage: pageHostFor(range.endContainer) !== host,
             rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height, bottom: rect.bottom },
             truncated: text.length > MAX_SELECTION,
             source: 'original',
@@ -3358,11 +3377,12 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             doc,
             pageNumber: number,
             pageWidth,
-            defaultHeight,
+            defaultHeight: number === pageNumber && currentAspect ? pageWidth * currentAspect : defaultHeight,
             active: activePages.has(number) || (number >= nearbyFrom && number <= nearbyTo),
             current: number === pageNumber,
             adjacent: Math.abs(number - pageNumber) === 1,
             registerPage,
+            marks: marksByPage.get(number), onEditNote,
             onEngine,
             t,
           })
@@ -3372,13 +3392,31 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     // ── original view ────────────────────────────────────────────────────────
 
-    function OriginalView({ doc, t, pdfjsInfo, onSelect, onPositionBlock, onPageChange, jumpRequest, onEngine }) {
+    function OriginalView({ doc, t, pdfjsInfo, onSelect, onPositionBlock, onPageChange, jumpRequest, onEngine, annotations, onEditNote, onBookmark, onNotes }) {
+      const marksByPage = useMemo(() => { const map = new Map(); for (const item of annotations) { if (!map.has(item.pdfPage)) map.set(item.pdfPage, []); map.get(item.pdfPage).push(item) } return map }, [annotations])
       const [status, setStatus] = useState('loading')
       const [error, setError] = useState('')
       const [pdfApi, setPdfApi] = useState(null)
       const [pageNumber, setPageNumber] = useState(1)
       const [pageCount, setPageCount] = useState(0)
-      const [width, setWidth] = useState(0)
+      const [availableWidth, setAvailableWidth] = useState(0)
+      const [availableHeight, setAvailableHeight] = useState(0)
+      const [naturalSize, setNaturalSize] = useState({ pageNumber: 0, width: 612, height: 792 })
+      const [zoom, setZoom] = useState(() => {
+        const stored = readStore('pdfZoom', { mode: 'width', percent: 100 })
+        return ['width', 'page', 'custom'].includes(stored?.mode)
+          ? { mode: stored.mode, percent: Math.min(300, Math.max(25, Number(stored.percent) || 100)) }
+          : { mode: 'width', percent: 100 }
+      })
+      const width = availableWidth <= 0 ? 0 : Math.max(100, Math.min(3600,
+        zoom.mode === 'custom' ? naturalSize.width * zoom.percent / 100
+          : zoom.mode === 'page' ? Math.min(availableWidth, availableHeight * naturalSize.width / naturalSize.height)
+            : availableWidth))
+      const [navigation, setNavigation] = useState(null)
+      const historyRef = useRef({ back: [], forward: [] })
+      const [, refreshHistory] = useState(0)
+      const restoringRef = useRef(false)
+      const pendingPositionRef = useRef(null)
       const [pageSize, setPageSize] = useState({ width: 0, height: 0 })
       const [rendering, setRendering] = useState(false)
       const [pageDraft, setPageDraft] = useState('1')
@@ -3404,6 +3442,95 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       tRef.current = t
       docRef.current = doc
       onEngineRef.current = onEngine
+
+      const capturePosition = () => {
+        const root = scrollRef.current
+        const page = root?.querySelector('.dsr-pdf-page[data-page="' + pageNumber + '"]')
+        if (!root || !page) return { pageNumber, x: 0, y: 0 }
+        const rect = page.getBoundingClientRect()
+        const view = root.getBoundingClientRect()
+        return { pageNumber, x: Math.max(0, (view.left + 16 - rect.left) / Math.max(1, rect.width)), y: Math.max(0, (view.top + 16 - rect.top) / Math.max(1, rect.height)) }
+      }
+      const navigateTo = (target, { remember = true, position = null } = {}) => {
+        target = Math.min(pageCount, Math.max(1, Math.floor(Number(target) || 1)))
+        if (remember) {
+          historyRef.current.back.push(capturePosition())
+          historyRef.current.back = historyRef.current.back.slice(-80)
+          historyRef.current.forward = []
+          refreshHistory(n => n + 1)
+        }
+        onSelectRef.current?.(null)
+        try { window.getSelection()?.removeAllRanges() } catch { /* ignore */ }
+        restoringRef.current = true
+        pendingPositionRef.current = position ?? { pageNumber: target, x: 0, y: 0 }
+        setNavigation({ token: Date.now() + Math.random(), pageNumber: target })
+        setPageNumber(target)
+        setPageDraft(String(target))
+      }
+      const travel = direction => {
+        const source = historyRef.current[direction]
+        if (!source.length) return
+        const destination = source.pop()
+        historyRef.current[direction === 'back' ? 'forward' : 'back'].push(capturePosition())
+        refreshHistory(n => n + 1)
+        navigateTo(destination.pageNumber, { remember: false, position: destination })
+      }
+      const changeZoom = next => {
+        pendingPositionRef.current = capturePosition()
+        restoringRef.current = true
+        setNavigation({ token: Date.now() + Math.random(), pageNumber })
+        setZoom(next)
+        writeStore('pdfZoom', next)
+        onSelectRef.current?.(null)
+      }
+      useEffect(() => {
+        if (!pdfApi) return undefined
+        let cancelled = false
+        void pdfApi.pdf.getPage(pageNumber).then(page => {
+          if (cancelled) return
+          const size = page.getViewport({ scale: 1 })
+          setNaturalSize(old => old.pageNumber === pageNumber && old.width === size.width && old.height === size.height ? old : { pageNumber, width: size.width, height: size.height })
+        }).catch(() => {})
+        return () => { cancelled = true }
+      }, [pdfApi, pageNumber])
+      useEffect(() => {
+        if (status !== 'ready') return undefined
+        const root = scrollRef.current
+        if (!root) return undefined
+        const onKey = event => {
+          if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"]')) return
+          if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+            event.preventDefault(); travel(event.key === 'ArrowLeft' ? 'back' : 'forward')
+          }
+        }
+        const onMouse = event => {
+          if (event.button !== 3 && event.button !== 4) return
+          event.preventDefault(); travel(event.button === 3 ? 'back' : 'forward')
+        }
+        const reader = root.closest('.dsr-original') ?? root
+        reader.addEventListener('keydown', onKey)
+        root.addEventListener('mouseup', onMouse)
+        const preventAux = event => { if (event.button === 3 || event.button === 4) event.preventDefault() }
+        root.addEventListener('mousedown', preventAux)
+        root.addEventListener('auxclick', preventAux)
+        return () => { reader.removeEventListener('keydown', onKey); root.removeEventListener('mouseup', onMouse); root.removeEventListener('mousedown', preventAux); root.removeEventListener('auxclick', preventAux) }
+      }, [status, pageNumber, pageCount, mode])
+      useEffect(() => {
+        if (status !== 'ready' || !pendingPositionRef.current) return undefined
+        const position = pendingPositionRef.current
+        if (position.pageNumber !== pageNumber || naturalSize.pageNumber !== pageNumber) return undefined
+        if (mode === 'single' && (rendering || Math.abs(pageSize.width - width) > 1)) return undefined
+        const frame = requestAnimationFrame(() => {
+          const root = scrollRef.current
+          const page = root?.querySelector('.dsr-pdf-page[data-page="' + pageNumber + '"]')
+          if (!page || !root) return
+          const rect = page.getBoundingClientRect(), view = root.getBoundingClientRect()
+          root.scrollTo({ top: Math.max(0, root.scrollTop + rect.top - view.top - 16 + position.y * rect.height), left: Math.max(0, root.scrollLeft + rect.left - view.left - 16 + position.x * rect.width), behavior: 'auto' })
+          pendingPositionRef.current = null
+          restoringRef.current = false
+        })
+        return () => cancelAnimationFrame(frame)
+      }, [navigation, width, pageNumber, mode, status, rendering, pageSize, naturalSize])
 
       // Surface the active renderer to the panel-level diagnostics.
       useEffect(() => {
@@ -3435,12 +3562,11 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           ? requestedPage
           : pdfPageForBlock(doc, jumpRequest.blockId, pageCount)
         if (target === undefined) return
-        onSelectRef.current?.(null)
-        setPageNumber(target)
-        setPageDraft(String(target))
+        navigateTo(target, { position: jumpRequest.position ?? (jumpRequest.crop ? { pageNumber: target, x: jumpRequest.crop.x, y: jumpRequest.crop.y } : null) })
       }, [jumpRequest, status, pageCount, doc])
 
       const handleContinuousPage = useCallback(next => {
+        if (restoringRef.current) return
         setPageNumber(next)
         setPageDraft(String(next))
       }, [])
@@ -3566,7 +3692,9 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           const next = Math.floor(Math.min(1440, available) / 16) * 16
           // ResizeObserver also fires when the rendered page height changes.
           // Only treat a real width change as a re-render trigger.
-          setWidth(previous => Math.abs(previous - next) < 8 ? previous : next)
+          setAvailableWidth(previous => Math.abs(previous - next) < 8 ? previous : next)
+          const height = Math.max(120, element.clientHeight - 44)
+          setAvailableHeight(previous => Math.abs(previous - height) < 4 ? previous : height)
         }
         measure()
         if (typeof ResizeObserver === 'undefined') {
@@ -3614,9 +3742,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               // 4K display cannot exhaust the renderer process. A single A4
               // page at 1440 CSS px wide and 2x is ~11.7 MP, below this cap.
               const maxPixels = 12_000_000
-              while (viewport.width * viewport.height * ratio * ratio > maxPixels && ratio > 1) {
-                ratio = Math.max(1, ratio * 0.85)
-              }
+              ratio = Math.min(ratio, Math.sqrt(maxPixels / (viewport.width * viewport.height)))
               canvas.width = Math.max(1, Math.floor(viewport.width * ratio))
               canvas.height = Math.max(1, Math.floor(viewport.height * ratio))
               canvas.style.width = `${viewport.width}px`
@@ -3715,6 +3841,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             page: block.page,
             pdfPage: pageNumber,
             crop: cropForRect(textLayerRef.current?.closest('.dsr-pdf-page'), rect),
+            rects: rectsForRange(textLayerRef.current?.closest('.dsr-pdf-page'), range),
             rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height, bottom: rect.bottom },
             truncated: text.length > MAX_SELECTION,
             source: 'original',
@@ -3730,9 +3857,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           setPageDraft(String(pageNumber))
           return
         }
-        onSelectRef.current?.(null)
-        try { window.getSelection()?.removeAllRanges() } catch { /* ignore */ }
-        setPageNumber(target)
+        navigateTo(target)
       }
 
       const handleRegion = useCallback(({ pageNumber: pdfPage, rect, crop }) => {
@@ -3768,6 +3893,15 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               className: cls('dsr-engine', engine === 'pdfjs' && 'is-fallback'),
               title: engine === 'pdfium' ? t('pdfiumEngine') : t('pdfjsEngine'),
             }, engine === 'pdfium' ? 'PDFium' : 'PDF.js'),
+          h('div', { className: 'dsr-zoom', role: 'group', 'aria-label': t('zoomLabel') },
+            h('button', { type: 'button', className: 'dsr-icon-btn', title: t('navBack'), 'aria-label': t('navBack'), disabled: !historyRef.current.back.length, onClick: () => travel('back') }, '↶'),
+            h('button', { type: 'button', className: 'dsr-icon-btn', title: t('navForward'), 'aria-label': t('navForward'), disabled: !historyRef.current.forward.length, onClick: () => travel('forward') }, '↷'),
+            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' −', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.max(25, Math.round(width / naturalSize.width * 100) - 25) }) }, '−'),
+            h('select', { className: 'dsr-select', value: zoom.mode === 'custom' ? String(zoom.percent) : zoom.mode, 'aria-label': t('zoomLabel'), disabled: status !== 'ready', onChange: event => changeZoom(['width','page'].includes(event.target.value) ? { mode: event.target.value, percent: zoom.percent } : { mode: 'custom', percent: Number(event.target.value) }) },
+              h('option', { value: 'width' }, t('zoomWidth')), h('option', { value: 'page' }, t('zoomPage')),
+              [...new Set([25,50,75,100,125,150,175,200,250,300,zoom.percent])].sort((a,b)=>a-b).map(value => h('option', { key: value, value: String(value) }, value + '%'))),
+            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' +', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.min(300, Math.round(width / naturalSize.width * 100) + 25) }) }, '+')
+          ),
           h('div', { className: 'dsr-pdf-mode', role: 'group', 'aria-label': t('pageMode') },
             h('button', {
               type: 'button',
@@ -3810,6 +3944,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               'aria-label': t('nextPage'),
             }, h(Icon, { name: 'chevron', size: 13 }))
           ),
+          h('button', { type: 'button', className: 'dsr-btn', disabled: status !== 'ready', onClick: () => onBookmark(pageNumber), title: t('pageBookmark') }, '◆'),
+          h('button', { type: 'button', className: 'dsr-btn', onClick: onNotes }, t('annotations')),
           h('a', { className: 'dsr-btn', href: fallbackUrl, target: '_blank', rel: 'noreferrer noopener' }, t('originalNewTab'))
         ),
         engine === 'pdfjs'
@@ -3833,7 +3969,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                 title: doc.name,
               })
             )
-            : h('div', { className: 'dsr-pdf-scroll', ref: scrollRef },
+            : h('div', { className: 'dsr-pdf-scroll', ref: scrollRef, tabIndex: 0, 'aria-label': doc.name },
               mode === 'single' && error !== ''
                 ? h('div', { className: 'dsr-inline-error', style: { margin: '0 auto 14px', maxWidth: 760 } }, h(Icon, { name: 'alert', size: 13 }), h('span', null, error))
                 : null,
@@ -3850,6 +3986,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                     },
                       h('canvas', { ref: canvasRef, className: 'dsr-pdf-canvas', 'aria-hidden': true }),
                       h('div', { ref: textLayerRef, className: 'dsr-pdf-textLayer' }),
+                      h(AnnotationLayer, { marks: marksByPage.get(pageNumber), onEdit: onEditNote, t }),
                       rendering || pageSize.width === 0
                         ? h('div', { className: 'dsr-pdf-busy' }, h(Spinner, null), t('pdfLoadingPage'))
                         : null
@@ -3870,12 +4007,87 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                       onPageChange: handleContinuousPage,
                       onPositionBlock,
                       onEngine: setEngine,
+                      marksByPage, onEditNote,
+                      currentAspect: naturalSize.pageNumber === pageNumber ? naturalSize.height / naturalSize.width : null,
                       scrollRef,
                     })
                     : h('div', { className: 'dsr-original-loading' }, h(Spinner, null), h('span', null, t('pdfLoadingPage')))
                 )
             )
       )
+    }
+
+    function AnnotationLayer({ marks = [], onEdit, t }) {
+      if (!marks.length) return null
+      return h('div', { className: 'dsr-mark-layer' }, marks.map((item,index) => {
+        const rects = item.rects?.length ? item.rects : item.crop ? [item.crop] : []
+        const first = rects[0]
+        return h(React.Fragment, { key: item.id },
+          rects.map((rect,i) => h('div', { key: i, className: 'dsr-mark', style: { left: rect.x*100+'%', top: rect.y*100+'%', width: rect.width*100+'%', height: rect.height*100+'%' } })),
+          h('button', { type: 'button', className: 'dsr-mark-note', title: item.note || item.quote || t('noQuote'), 'aria-label': t('editNote'), onClick: () => onEdit?.(item), style: { left: first ? Math.min(96, first.x*100)+'%' : '1%', top: first ? Math.max(0, first.y*100)+'%' : 1 + index*2+'%' } }, item.type === 'bookmark' ? '◆' : '✎'))
+      }))
+    }
+
+    function EvidenceDialog({ doc, reference, pageCount, t, onClose, onJump }) {
+      const ref = useRef(null)
+      const [data,setData] = useState(null), [error,setError] = useState(''), [imageError,setImageError] = useState(false)
+      useModalFocus(true,onClose,ref)
+      useEffect(() => {
+        let alive=true
+        setData(null);setError('');setImageError(false)
+        apiGet('/evidence?id='+encodeURIComponent(doc.id)+'&ref='+encodeURIComponent(reference)+'&pages='+pageCount)
+          .then(body => { if(alive) { if(body.ok !== true) throw new Error(body.error?.message || t('evidenceFailed')); setData(body.evidence) } })
+          .catch(err => {if(alive)setError(err.message)})
+        return ()=>{alive=false}
+      },[doc.id,reference,pageCount,t])
+      return h('div',{className:'dsr-modal-layer',onMouseDown:event=>{if(event.target===event.currentTarget)onClose()}},
+        h('div',{className:'dsr-study-dialog',ref,role:'dialog','aria-modal':true,'aria-label':t('evidenceTitle'),tabIndex:-1},
+          h('div',{className:'dsr-study-dialog-head'},h('strong',null,t('evidenceTitle')+' · '+reference),h('button',{type:'button',className:'dsr-icon-btn',onClick:onClose,'aria-label':t('close')},h(Icon,{name:'close',size:14}))),
+          h('div',{className:'dsr-study-dialog-body'},
+            h('p',{className:'dsr-note-meta'},t('evidenceHint')),
+            error ? h('div',{className:'dsr-error-box'},error) : !data ? h(Spinner) : h(React.Fragment,null,
+              data.quote ? h('blockquote',{className:'dsr-evidence-quote'},data.quote) : h('p',null,t('evidenceNoText')),
+              data.truncated ? h('p',{className:'dsr-note-meta'},t('evidenceTruncated')) : null,
+              !Number.isInteger(data.pdfPage) ? h('p',{className:'dsr-note-meta'},t('evidenceNoMapping')) : null,
+              Number.isInteger(data.pdfPage) ? h(React.Fragment,null,
+                imageError ? h('p',{className:'dsr-error-box'},t('evidenceImageFailed')) : h('img',{className:'dsr-evidence-image',src:APP_BASE+'/page?id='+encodeURIComponent(doc.id)+'&n='+data.pdfPage+'&w=900',alt:data.label || reference,onError:()=>setImageError(true)}),
+                h('button',{type:'button',className:'dsr-btn dsr-btn-primary',onClick:()=>{onJump(data.pdfPage,data.blockId);onClose()}},t('evidenceJump'))
+              ) : null
+            )
+          )
+        ))
+    }
+
+    function AnnotationDialog({ doc, items, loading, loadError, initial, t, onSave, onRemove, onJump, onClose }) {
+      const ref=useRef(null), [editing,setEditing]=useState(initial ?? null), [filter,setFilter]=useState(''), [kind,setKind]=useState('all'), [saving,setSaving]=useState(false), [error,setError]=useState('')
+      useModalFocus(true,()=>{if(!saving)onClose()},ref)
+      const update=(key,value)=>setEditing(old=>({...old,[key]:value}))
+      const save=async()=>{if(!editing || saving)return;setSaving(true);setError('');try{await onSave({...editing,tags:typeof editing.tags==='string'?editing.tags.split(/[,，]/).map(x=>x.trim()).filter(Boolean):editing.tags??[]});setEditing(null)}catch(err){setError(err.message)}finally{setSaving(false)}}
+      const remove=async item=>{if(!window.confirm(t('noteDeleteConfirm')))return;setSaving(true);setError('');try{await onRemove(item.id);if(editing?.id===item.id)setEditing(null)}catch(err){setError(err.message)}finally{setSaving(false)}}
+      const needle=filter.trim().toLocaleLowerCase()
+      const filtered=items.filter(item=>(kind==='all'||item.type===kind)&&(!needle||[item.quote,item.note,...(item.tags??[]),String(item.pdfPage)].join(' ').toLocaleLowerCase().includes(needle))).sort((a,b)=>a.pdfPage-b.pdfPage||a.createdAt.localeCompare(b.createdAt))
+      return h('div',{className:'dsr-modal-layer',onMouseDown:event=>{if(event.target===event.currentTarget&&!saving)onClose()}},
+        h('div',{className:'dsr-study-dialog',ref,role:'dialog','aria-modal':true,'aria-label':t('annotations'),tabIndex:-1},
+          h('div',{className:'dsr-study-dialog-head'},h('strong',null,editing?t('editNote'):t('annotations')),h('button',{type:'button',className:'dsr-icon-btn',disabled:saving,onClick:onClose,'aria-label':t('close')},h(Icon,{name:'close',size:14}))),
+          h('div',{className:'dsr-study-dialog-body'},
+            error||loadError?h('div',{className:'dsr-error-box'},error||loadError):null,
+            editing ? h(React.Fragment,null,
+              h('div',{className:'dsr-note-meta'},tr(t,'pdfPageLabel',{n:editing.pdfPage})),
+              editing.quote?h('blockquote',{className:'dsr-evidence-quote'},editing.quote):null,
+              h('label',null,t('annotationType'),h('select',{className:'dsr-select',value:editing.type,onChange:e=>update('type',e.target.value)},[['bookmark','bookmark'],['highlight','highlight'],['note','addNote']].map(([value,key])=>h('option',{key:value,value},t(key))))),
+              h('label',null,t('noteText'),h('textarea',{value:editing.note??'',maxLength:20000,onChange:e=>update('note',e.target.value)})),
+              h('label',null,t('noteTags'),h('input',{value:Array.isArray(editing.tags)?editing.tags.join(', '):editing.tags??'',onChange:e=>update('tags',e.target.value)})),
+              h('div',{className:'dsr-note-actions'},h('button',{type:'button',className:'dsr-btn dsr-btn-primary',disabled:saving||loading,onClick:()=>void save()},saving?t('loading'):t('saveNote')),h('button',{type:'button',className:'dsr-btn',disabled:saving,onClick:()=>setEditing(null)},t('cancel')),editing.id?h('button',{type:'button',className:'dsr-btn',disabled:saving,onClick:()=>void remove(editing)},t('deleteNote')):null)
+            ) : h(React.Fragment,null,
+              h('div',{className:'dsr-note-filter'},h('input',{value:filter,placeholder:t('noteFilter'),'aria-label':t('noteFilter'),onChange:e=>setFilter(e.target.value)}),h('select',{className:'dsr-select',value:kind,'aria-label':t('annotationType'),onChange:e=>setKind(e.target.value)},[['all','allNotes'],['bookmark','bookmark'],['highlight','highlight'],['note','addNote']].map(([value,key])=>h('option',{key:value,value},t(key))))),
+              loading?h('p',null,t('noteLoading')):filtered.length===0?h('p',null,t('notesEmpty')):filtered.map(item=>h('div',{key:item.id,className:'dsr-note-row'},
+                h('div',{className:'dsr-note-meta'},tr(t,'pdfPageLabel',{n:item.pdfPage})+' · '+t({bookmark:'bookmark',highlight:'highlight',note:'addNote'}[item.type])+(item.tags?.length?' · '+item.tags.join(' · '):'')),
+                item.quote?h('blockquote',null,item.quote):null,item.note?h('div',{style:{whiteSpace:'pre-wrap'}},item.note):null,
+                h('div',{className:'dsr-note-actions'},h('button',{type:'button',className:'dsr-mini-btn',onClick:()=>{onJump(item);onClose()}},t('jumpTo')),h('button',{type:'button',className:'dsr-mini-btn',disabled:saving,onClick:()=>setEditing(item)},t('editNote')),h('button',{type:'button',className:'dsr-mini-btn',disabled:saving,onClick:()=>void remove(item)},t('deleteNote')))
+              ))
+            )
+          )
+        ))
     }
 
     // ── main page ────────────────────────────────────────────────────────────
@@ -3950,6 +4162,12 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const [expandedToc, setExpandedToc] = useState(() => new Set())
       const [searchOpen, setSearchOpen] = useState(false)
       const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+      const [annotations, setAnnotations] = useState([])
+      const annotationsRevisionRef = useRef(0)
+      const [annotationsLoading, setAnnotationsLoading] = useState(false)
+      const [annotationsError, setAnnotationsError] = useState('')
+      const [notesDialog, setNotesDialog] = useState(null)
+      const [evidenceRef, setEvidenceRef] = useState(null)
       const [engine, setEngine] = useState('')
       const [toast, setToast] = useState('')
       const askAbortRef = useRef(null)
@@ -4170,6 +4388,46 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           window.removeEventListener('resize', dismiss)
         }
       }, [selection])
+
+      useEffect(() => {
+        setAnnotations([]);setAnnotationsError('');setNotesDialog(null);setEvidenceRef(null)
+        if (!doc) return undefined
+        let alive = true
+        const revision = ++annotationsRevisionRef.current
+        setAnnotationsLoading(true)
+        apiGet('/annotations?id='+encodeURIComponent(doc.id)).then(body=>{
+          if(!alive)return
+          if(body.ok!==true)throw new Error(body.error?.message||t('notesFailed'))
+          if(annotationsRevisionRef.current===revision)setAnnotations(body.annotations)
+        }).catch(error=>{if(alive)setAnnotationsError(error.message)}).finally(()=>{if(alive)setAnnotationsLoading(false)})
+        return ()=>{alive=false}
+      },[doc?.id])
+      const editAnnotation = useCallback(item => setNotesDialog({initial:item}), [])
+      const saveAnnotation = async value => {
+        if (annotationsLoading) throw new Error(t('noteLoading'))
+        const id=doc.id
+        const response=await apiPost('/annotations',{docId:id,action:'upsert',annotation:value})
+        const body=await response.json()
+        if(body.ok!==true)throw new Error(body.error?.message||t('notesFailed'))
+        annotationsRevisionRef.current += 1
+        if(docRef.current?.id===id)setAnnotations(old=>[...old.filter(item=>item.id!==body.annotation.id),body.annotation])
+        showToast(t('notesSaved'))
+      }
+      const removeAnnotation = async id => {
+        if (annotationsLoading) throw new Error(t('noteLoading'))
+        const docId=doc.id
+        const response=await apiPost('/annotations',{docId,action:'remove',id})
+        const body=await response.json()
+        if(body.ok!==true)throw new Error(body.error?.message||t('notesFailed'))
+        annotationsRevisionRef.current += 1
+        if(docRef.current?.id===docId)setAnnotations(old=>old.filter(item=>item.id!==id))
+      }
+      const annotationFromSelection = type => {
+        if(!selection || selection.crossPage) {showToast(t('onePageOnly'));return}
+        const value={type,pdfPage:selection.pdfPage,blockId:selection.blockId,crop:selection.crop,rects:selection.rects??[],quote:selection.text??'',note:'',tags:[]}
+        if(type==='highlight')void saveAnnotation(value).then(()=>setSelection(null)).catch(error=>showToast(error.message))
+        else {setNotesDialog({initial:value});setSelection(null)}
+      }
 
       const onPdfSelection = useCallback(selection => {
         setSelection(selection)
@@ -4623,7 +4881,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       if (doc?.extractionError) problems.push(doc.extractionError)
       if (engine === 'pdfjs') problems.push(t('diagNoPdfium'))
 
-      return h('div', { className: 'dsr-root' },
+      return h(CitationContext.Provider, { value: setEvidenceRef }, h('div', { className: 'dsr-root' },
         h(TopBar, {
           doc,
           t,
@@ -4686,6 +4944,9 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                   onPositionBlock: onPdfPosition,
                   onPageChange: onPdfPage,
                   jumpRequest,
+                  annotations, onEditNote: editAnnotation,
+                  onBookmark: page => setNotesDialog({initial:{type:"bookmark",pdfPage:page,note:"",tags:[],quote:""}}),
+                  onNotes: () => setNotesDialog({initial:null}),
                 })
               )
               : h(OriginalUnavailable, {
@@ -4795,6 +5056,12 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             )
           )
           : null,
+        evidenceRef && doc ? h(EvidenceDialog, { key: doc.id + evidenceRef, doc, reference: evidenceRef, pageCount: pdfPageCount, t, onClose: () => setEvidenceRef(null), onJump: (page,blockId) => {
+          setSelection(null);setJumpRequest(previous => ({pageNumber:page,blockId,token:(previous?.token??0)+1}))
+        } }) : null,
+        notesDialog && doc ? h(AnnotationDialog, { key: doc.id, doc, items: annotations, loading: annotationsLoading, loadError: annotationsError, initial: notesDialog.initial, t, onClose: () => setNotesDialog(null), onSave: saveAnnotation, onRemove: removeAnnotation, onJump: item => {
+          setSelection(null);setJumpRequest(previous => ({pageNumber:item.pdfPage,crop:item.crop,token:(previous?.token??0)+1}))
+        } }) : null,
         searchOpen && doc !== null
           ? h(SearchDialog, { doc, t, onJump: scrollToBlock, onClose: () => setSearchOpen(false) })
           : null,
@@ -4830,6 +5097,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             onTranslate: target => void translateSelection(target),
             onAsk: askFromSelection,
             onExplain: explainSelection,
+            onHighlight: () => annotationFromSelection('highlight'),
+            onNote: () => annotationFromSelection('note'),
           })
           : null,
         browserOpen
@@ -4847,7 +5116,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           : null,
         toast !== '' ? h('div', { className: 'dsr-toast', role: 'status', 'aria-live': 'polite' }, toast) : null,
         selection?.truncated ? h('div', { className: 'dsr-toast', role: 'status', 'aria-live': 'polite' }, t('selectionTooLong')) : null
-      )
+      ))
     }
 
     return {

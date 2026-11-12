@@ -6,6 +6,9 @@
  * Run with: node scripts/smoke-host.mjs
  */
 import { createServer } from 'node:http'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, basename } from 'node:path'
 import { installStudyHost } from '../lib/app.js'
 
 function makePdf() {
@@ -47,7 +50,9 @@ let attachmentId = 0
 
 const fs = {
   async resolve(path) {
-    return { targetKey: `test:${path}`, displayPath: `C:\\tmp\\${path}` }
+    if (path.includes('denied')) throw new Error('Access denied by test filesystem')
+    const displayPath = /^[a-z]:[\\/]/i.test(path) ? path : `C:\\tmp\\${path}`
+    return { targetKey: `test:${displayPath}`, displayPath }
   },
   async stat() {
     return { type: 'file', size: pdf.byteLength, version: 'v1' }
@@ -107,7 +112,9 @@ const llm = {
 }
 
 let registered
+let annotationTool
 const ctx = {
+  inject(names, callback) { if (names.includes('tools')) callback({ tools: { register(definition) { annotationTool = definition; return () => {} } } }) },
   webServer: {
     register(route) {
       registered = route
@@ -115,6 +122,7 @@ const ctx = {
     },
   },
   get(name) {
+    if (name === 'officeToPdf') return { async convert() { return { pdf } } }
     if (name === 'fs') return fs
     if (name === 'llm') return llm
     if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'fake', model: 'fake-model' }) }
@@ -157,7 +165,8 @@ const expect = (condition, message) => {
   if (!condition) failures.push(message)
 }
 
-const host = installStudyHost(ctx, { maxDocumentBytes: 0, visionMaxPages: 2 })
+const annotationDirectory = await mkdtemp(join(tmpdir(), 'dsh-study-http-'))
+const host = installStudyHost(ctx, { maxDocumentBytes: 0, visionMaxPages: 2, annotationDirectory })
 const server = createServer((req, res) => {
   if (registered === undefined) {
     res.writeHead(500)
@@ -197,6 +206,30 @@ try {
   const fullDoc = JSON.parse(extracted.text).doc
   expect(Array.isArray(fullDoc.blocks) && fullDoc.blocks.length > 0, 'extract should produce text blocks')
   expect(Array.isArray(fullDoc.toc) && fullDoc.toc.length === 2, `extract should read the outline: ${JSON.stringify(fullDoc.toc)}`)
+
+  const emptyAnnotations = await getJson('/annotations?id='+doc.id)
+  expect(emptyAnnotations.status===200 && emptyAnnotations.body.annotations.length===0, 'annotations start empty')
+  const savedResponse = await post('/annotations', {docId:doc.id,action:'upsert',annotation:{type:'highlight',pdfPage:1,quote:'Hello',crop:{x:.1,y:.1,width:.3,height:.05},rects:[{x:.1,y:.1,width:.3,height:.05}],note:'My note',tags:['test']}})
+  expect(savedResponse.status===200, 'annotation HTTP save succeeds: '+savedResponse.text)
+  const savedAnnotation=JSON.parse(savedResponse.text).annotation
+  const toolListed = await annotationTool.execute({action:'list',documentPath:'C:\\tmp\\sample.pdf'})
+  expect(toolListed.annotations.some(item=>item.id===savedAnnotation?.id),'tool sees annotation saved through HTTP')
+  if(savedAnnotation){
+    const edited = await annotationTool.execute({action:'upsert',documentPath:'C:\\tmp\\sample.pdf',annotation:{id:savedAnnotation.id,note:'Edited through tool'}})
+    expect(edited.annotation.note==='Edited through tool','tool uses same mutation operation')
+    const listed=await getJson('/annotations?id='+doc.id)
+    expect(listed.body.annotations[0]?.note==='Edited through tool','HTTP sees tool update')
+    const deleted=await post('/annotations',{docId:doc.id,action:'remove',id:savedAnnotation.id})
+    expect(deleted.status===200 && JSON.parse(deleted.text).removed,'HTTP removes saved annotation')
+  }
+  const invalidAnnotation=await post('/annotations',{docId:doc.id,action:'upsert',annotation:{type:'bookmark',pdfPage:999}})
+  expect(invalidAnnotation.status===400,'out-of-document annotation page rejected')
+  const evidence=await getJson('/evidence?id='+doc.id+'&ref='+encodeURIComponent('[B0]'))
+  expect(evidence.status===200 && evidence.body.evidence.pdfPage===1 && evidence.body.evidence.quote.includes('Hello'),'block evidence resolves real source')
+  const pageEvidence=await getJson('/evidence?id='+doc.id+'&ref='+encodeURIComponent('[第 2 页]'))
+  expect(pageEvidence.status===200 && pageEvidence.body.evidence.pdfPage===2,'physical page evidence resolves')
+  const invalidEvidence=await getJson('/evidence?id='+doc.id+'&ref='+encodeURIComponent('[第 999 页]')+'&pages=999')
+  expect(invalidEvidence.status===404,'client page count cannot authorize invalid evidence')
 
   const asked = await post('/ask', {
     docId: doc.id,
@@ -282,9 +315,31 @@ try {
     expect(entry.notes.overviewBatchCount === 1, 'overview should record the batch count')
     expect(Array.isArray(entry.images) && entry.images.length === 2, 'overview should attach both chapter pages')
   }
+  let denied = false
+  try { await annotationTool.execute({ action: 'list', documentPath: 'C:\\tmp\\denied.pdf' }) } catch (error) { denied = error.message.includes('Access denied') }
+  expect(denied, 'annotation tool propagates filesystem authorization denial')
+  const officeOpened = await post('/open', { path: 'sample.doc' })
+  expect(officeOpened.status === 200, 'legacy Office fixture opens through conversion')
+  if (officeOpened.status === 200) {
+    const officeDoc = JSON.parse(officeOpened.text).doc
+    const image = await fetch(base+'/page?id='+officeDoc.id+'&n=1&w=400')
+    expect(image.status===200 && image.headers.get('content-type')==='image/jpeg', 'Office preview image uses converted PDF')
+    await image.arrayBuffer()
+    const evidence = await getJson('/evidence?id='+officeDoc.id+'&ref='+encodeURIComponent('[第 1 页]'))
+    expect(evidence.status===200 && evidence.body.evidence.pdfPage===1, 'converted Office citation uses actual physical page')
+  }
+  const retiredEntry = host.app.entryDoc(doc.id)
+  expect(retiredEntry.pdfium !== undefined, 'rendered document holds a PDFium handle before eviction')
+  const oldMax = host.app.docs.max
+  host.app.docs.max = 1
+  await post('/open', { path: 'eviction.pdf' })
+  expect(retiredEntry.retired===true && retiredEntry.pdfium===undefined, 'eviction releases PDFium document')
+  host.app.docs.max = oldMax
 } finally {
   server.close()
   host.dispose()
+  if (!basename(annotationDirectory).startsWith('dsh-study-http-')) throw new Error('Unexpected test storage path')
+  await rm(annotationDirectory, { recursive: true, force: true })
 }
 
 if (failures.length > 0) {
