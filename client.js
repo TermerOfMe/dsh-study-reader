@@ -842,18 +842,18 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-pdf-page-no{font-size:10px;line-height:1;color:var(--dsw-alias-label-secondary);margin:0 0 6px 2px;letter-spacing:.04em;user-select:none}
 .dsr-pdf-page-block.is-current .dsr-pdf-page-no{color:var(--dsw-alias-brand-primary)}
 .dsr-pdf-page-block.is-current .dsr-pdf-page{box-shadow:0 10px 34px color-mix(in srgb,var(--dsw-alias-label-primary) 22%,transparent)}
-.dsr-pdf-page-placeholder{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:20px;background:#fff;color:#3f4652;font-size:10.5px;line-height:1.5;text-align:center;pointer-events:none}
-.dsr-pdf-page-placeholder .dsr-spinner{border-color:rgba(15,17,21,.16);border-top-color:#0f1115}
-.dsr-pdf-page{position:relative;flex:none;background:#fff;color:#3f4652;box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 16%,transparent);overflow:hidden;color-scheme:light}
-.dsr-pdf-canvas{display:block;position:absolute;inset:0;width:100%;height:100%}
+.dsr-pdf-page-placeholder{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:20px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:1.5;text-align:center;pointer-events:none}
+.dsr-pdf-page-placeholder .dsr-spinner{border-color:var(--dsw-alias-border-l2);border-top-color:var(--dsw-alias-label-primary)}
+.dsr-pdf-page{position:relative;flex:none;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 16%,transparent);overflow:hidden}
+.dsr-pdf-canvas{display:block;position:absolute;inset:0;width:100%;height:100%;filter:var(--dsr-pdf-filter,none)}
 .dsr-pdf-textLayer{position:absolute;inset:0;overflow:clip;opacity:1;line-height:1;text-align:initial;letter-spacing:normal;word-spacing:normal;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;caret-color:CanvasText;z-index:2;--total-scale-factor:1;--min-font-size:1;--text-scale-factor:calc(var(--total-scale-factor) * var(--min-font-size));--min-font-size-inv:calc(1 / var(--min-font-size))}
 .dsr-pdf-textLayer span,.dsr-pdf-textLayer br{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%;user-select:text}
 .dsr-pdf-textLayer > :not(.markedContent),.dsr-pdf-textLayer .markedContent span:not(.markedContent){z-index:1;--font-height:0;font-size:calc(var(--text-scale-factor) * var(--font-height));--scale-x:1;--rotate:0deg;transform:rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv))}
 .dsr-pdf-textLayer .markedContent{display:contents}
 .dsr-pdf-textLayer ::selection{background:var(--dsw-alias-bg-document-selection,rgba(59,130,246,.4));color:transparent}
 .dsr-pdf-textLayer .endOfContent{display:block;position:absolute;inset:100% 0 0;z-index:0;cursor:default;user-select:none}
-.dsr-pdf-busy{position:absolute;right:9px;top:9px;z-index:4;display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:99px;border:1px solid rgba(15,17,21,.12);background:rgba(248,249,250,.94);color:#3f4652;font-size:9.5px;box-shadow:0 3px 10px rgba(15,17,21,.14)}
-.dsr-pdf-busy .dsr-spinner{border-color:rgba(15,17,21,.16);border-top-color:#0f1115}
+.dsr-pdf-busy{position:absolute;right:9px;top:9px;z-index:4;display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:99px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-secondary);font-size:9.5px;box-shadow:0 3px 10px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}
+.dsr-pdf-busy .dsr-spinner{border-color:var(--dsw-alias-border-l2);border-top-color:var(--dsw-alias-label-primary)}
 .dsr-pdf-fallback{max-width:620px;margin:10vh auto 0;padding:22px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);text-align:center;color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:1.65}
 .dsr-pdf-fallback h3{font-size:14px;margin:0 0 7px;color:var(--dsw-alias-label-primary)}
 .dsr-pdf-fallback p{margin:0 0 13px}
@@ -4851,7 +4851,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     }
 
     return {
-      inject: ['slots', 'locale'],
+      inject: ['slots', 'locale', 'theme'],
       apply(ctx) {
         // The stylesheet lives for the plugin lifetime, not for one selected
         // main panel. This avoids a large style node being inserted/removed
@@ -4860,8 +4860,25 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           const style = document.createElement('style')
           style.dataset.studyReader = 'styles'
           style.textContent = CSS
+          const night = document.createElement('style')
+          night.dataset.studyReader = 'pdf-night'
+          // Display-only: keep source pixels, text selection and model crops
+          // intact. Both PDFium and PDF.js, in either paging mode, share this
+          // canvas class. Hue rotation keeps chart hues closer to the source;
+          // brightness softens white text and gives white paper a #181818 base.
+          night.textContent = '.dsr-root{--dsr-pdf-filter:invert(90%) hue-rotate(180deg) brightness(.94)}'
+          const syncTheme = snapshot => {
+            night.media = snapshot.active.colorScheme === 'dark' ? 'all' : 'not all'
+          }
+          syncTheme(ctx.theme.getTheme())
           document.head.appendChild(style)
-          return () => style.remove()
+          document.head.appendChild(night)
+          const stopTheme = ctx.on('theme/change', syncTheme)
+          return () => {
+            stopTheme()
+            night.remove()
+            style.remove()
+          }
         }, 'study-reader: styles')
 
         ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({

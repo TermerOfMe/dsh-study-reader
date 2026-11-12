@@ -13,6 +13,19 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
 
+## [1.14.1] - 2026-11-12
+
+### Added
+- PDF 原貌页面跟随 DSH 当前明暗主题，支持手动切换、跟随系统和深色自定义主题；单页/连续页、PDFium/PDF.js 以及 Office 转换页面共用显示层适配。
+- 夜间以深色纸面、浅色文字显示；滤镜仅作用于画布，不影响文字选区、区域引用和发送给模型的原始截图。彩色图像会经过夜间配色转换，查看原色可切回浅色主题。
+
+### Fixed
+- 页面加载占位、错误占位、加载状态提示及旋转指示器使用宿主主题色，避免夜间加载时出现白色占位。
+- 通过主题服务订阅变化，切换无需重渲染页面；插件卸载时清理监听及样式。
+
+### Verification
+- JavaScript 语法、版本一致性及现有回归检查；当前工具环境没有浏览器控制能力，真实页面的明暗切换和视觉效果需在重新加载插件后确认。
+
 ## [1.14.0] - 2026-11-12
 
 ### Added
