@@ -4086,6 +4086,24 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         return () => document.removeEventListener('keydown', onKey)
       }, [])
 
+      useEffect(() => {
+        if (selection?.source !== 'region') return undefined
+        const dismiss = event => {
+          // The language picker and action buttons belong to this selection.
+          // Choosing a language must leave the crop visible until an action.
+          if (event.target instanceof Element && event.target.closest('.dsr-selection') !== null) return
+          setSelection(null)
+        }
+        document.addEventListener('pointerdown', dismiss, true)
+        document.addEventListener('scroll', dismiss, true)
+        window.addEventListener('resize', dismiss)
+        return () => {
+          document.removeEventListener('pointerdown', dismiss, true)
+          document.removeEventListener('scroll', dismiss, true)
+          window.removeEventListener('resize', dismiss)
+        }
+      }, [selection])
+
       const onPdfSelection = useCallback(selection => {
         setSelection(selection)
         if (selection !== null) {
@@ -4687,6 +4705,19 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           problems,
           onToast: showToast,
         }),
+        selection?.source === 'region'
+          ? h('div', {
+            className: 'dsr-region-box',
+            'aria-hidden': true,
+            style: {
+              left: selection.rect.left,
+              top: selection.rect.top,
+              width: selection.rect.width,
+              height: selection.rect.height,
+              zIndex: 1199,
+            },
+          })
+          : null,
         selection !== null
           ? h(SelectionBar, {
             selection,

@@ -13,6 +13,14 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
 
+## [1.13.2] - 2026-11-12
+
+### Fixed
+- Ctrl / ⌘ 框选区域后，矩形与翻译/追问/解释菜单一起保留；选择动作后
+  再一起消失，切换翻译目标语言不会提前清除矩形。
+- 按 Esc、点击菜单外部、滚动或调整窗口大小时取消区域选区，防止固定
+  坐标的矩形留在已移动的页面上。普通文字选择保持原有行为。
+
 ## [1.13.1] - 2026-11-12
 
 ### Fixed
