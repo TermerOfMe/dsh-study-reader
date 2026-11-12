@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-study-reader",
-  "version": "1.16.1",
+  "version": "1.16.2",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -8,7 +8,7 @@
   "scripts": {
     "check": "node scripts/check.mjs",
     "version:check": "node scripts/check.mjs",
-    "test": "node scripts/test-search-position.mjs && node scripts/test-shortcuts.mjs && node scripts/test-annotations.mjs && node scripts/test-annotation-tool.mjs && node scripts/test-evidence.mjs && node scripts/test-context.mjs && node scripts/test-reading.mjs && node scripts/smoke-context.mjs && node scripts/smoke-host.mjs"
+    "test": "node scripts/test-partial-images.mjs && node scripts/test-search-position.mjs && node scripts/test-shortcuts.mjs && node scripts/test-annotations.mjs && node scripts/test-annotation-tool.mjs && node scripts/test-evidence.mjs && node scripts/test-context.mjs && node scripts/test-reading.mjs && node scripts/smoke-context.mjs && node scripts/smoke-host.mjs"
   },
   "exports": {
     ".": "./index.js",

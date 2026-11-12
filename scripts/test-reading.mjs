@@ -85,24 +85,27 @@ const retried = await streamCompletion({ ctx: retryCtx, system: 's', prompt: 'p'
 assert.equal(retried.usage.inputTokens, 20)
 assert.equal(retried.usage.outputTokens, 40)
 assert.equal(READING_TOOLS.length, 3)
-// Result acceptance is transactional, including partial multi-image failures.
+// Page errors preserve successful images; admission remains transactional.
 let renders = 0
 const transactional = createReadingSession({ doc, mode: 'reread', anchor: 1, currentPage: 2, config, vision: true, getImage: async page => {
   renders++
   if (page === 2) throw new Error('render failed')
   return { ref: { attachmentId: 'image1', width: 100, height: 100 }, meta: { page } }
 } })
-const failedImages = await transactional.execute({ name: 'document_read', arguments: JSON.stringify({ pages: [1,2], format: 'image', offset: 0, crop: null }) })
-assert(failedImages.isError)
-assert.equal(transactional.images.length, 0)
-assert.equal(transactional.seenPages.size, 0)
-const pendingRead = await transactional.execute({ name: 'document_read', arguments: JSON.stringify({ pages: [1], format: 'image', offset: 0, crop: null }) }, { deferCommit: true })
-assert.equal(transactional.images.length, 0)
-pendingRead.commit(false, 'over budget')
-assert.equal(transactional.images.length, 0)
-const retryRead = await transactional.execute({ name: 'document_read', arguments: JSON.stringify({ pages: [1], format: 'image', offset: 0, crop: null, reason: 'retry' }) })
-assert.equal(retryRead.images.length, 1)
+const partialImages = await transactional.execute({ name: 'document_read', arguments: JSON.stringify({ pages: [1,2], format: 'image', offset: 0, crop: null }) })
+assert(!partialImages.isError)
+assert.equal(partialImages.images.length, 1)
+assert.equal(JSON.parse(partialImages.text).pages[1].error, 'render failed')
 assert.equal(transactional.images.length, 1)
+assert.equal(transactional.seenPages.size, 1)
+const crop = { x: 0, y: 0, width: .5, height: .5 }
+const pendingRead = await transactional.execute({ name: 'document_read', arguments: JSON.stringify({ pages: [1], format: 'image', offset: 0, crop }) }, { deferCommit: true })
+assert.equal(transactional.images.length, 1)
+pendingRead.commit(false, 'over budget')
+assert.equal(transactional.images.length, 1)
+const retryRead = await transactional.execute({ name: 'document_read', arguments: JSON.stringify({ pages: [1], format: 'image', offset: 0, crop, reason: 'retry' }) })
+assert.equal(retryRead.images.length, 1)
+assert.equal(transactional.images.length, 2)
 assert.equal(transactional.seenPages.size, 1)
 assert.equal(renders, 4)
 
