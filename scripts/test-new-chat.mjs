@@ -281,3 +281,33 @@ test('retrying an old failed save preserves the currently selected conversation'
   assert.equal(state.saves.at(-1).activeId,'other')
   assert.ok(state.saves.filter(item=>item.conversation.id==='original').every(item=>item.activeId===undefined))
 })
+
+test('token-limit error preserves partial Markdown and stores terminal diagnostics', async () => {
+  const { state, context } = setup()
+  context.streamPost = async (path, body, signal, frame) => {
+    frame({ type: 'delta', text: '**partial** \\[A\\] [第' })
+    frame({ type: 'error', message: 'output budget reached', code: 'MAX_TOKENS', finishReason: 'max-tokens', usage: { outputTokens: 4096 } })
+  }
+  await context.sendQuestion('question')
+  const message = state.messages.at(-1)
+  assert.equal(message.text, '**partial** \\[A\\] [第')
+  assert.equal(message.pending, false)
+  assert.equal(message.errorCode, 'MAX_TOKENS')
+  assert.equal(message.finishReason, 'max-tokens')
+  assert.equal(message.usage.outputTokens, 4096)
+  assert.equal(state.busy, false)
+})
+
+test('transport failure preserves the text already received and never marks it successful', async () => {
+  const { state, context } = setup()
+  context.streamPost = async (path, body, signal, frame) => {
+    frame({ type: 'delta', text: 'partial answer [第' })
+    throw Object.assign(new Error('stream ended without terminal marker'), { code: 'STREAM_INCOMPLETE' })
+  }
+  await context.sendQuestion('question')
+  const message = state.messages.at(-1)
+  assert.equal(message.text, 'partial answer [第')
+  assert.equal(message.pending, false)
+  assert.equal(message.errorCode, 'STREAM_INCOMPLETE')
+  assert.ok(message.error)
+})

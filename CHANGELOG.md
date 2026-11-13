@@ -11,6 +11,17 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
 
+## [1.17.2] - 2026-11-13
+
+### Added
+- 消息底部统一的图标按钮操作栏：复制原文、编辑问题与创建分支；编辑面板区分主操作、分支和取消按钮，提供复制成功反馈。
+- 原文复制直接使用保存的消息文本，保留 Markdown、LaTeX、空白与代码，不混入渲染节点、引用预览或模型思考过程。
+
+### Fixed
+- 默认问答输出额度从 4096 提至 16384 tokens，保留显式配置及模型窗口约束；达到额度时保留已有正文并明确报告截断，不再冒充正常完成。
+- Host 记录模型结束原因、错误码和用量；缺失模型结束标记或浏览器响应终止帧时报告中断，保留已收到内容。客户端取消信号传递至实际请求。
+- 模型失败时刷新暂存的首行正文，避免尚未出现换行的部分回答被丢失。
+
 ## [1.17.1] - 2026-11-13
 
 ### Changed

@@ -241,6 +241,7 @@ globalThis.__ModuleLoader__.load({
         source: '原文',
         result: '译文',
         copy: '复制',
+        copySource: '复制原文', copySourceHint: '复制未渲染的 Markdown / LaTeX 原文', editPanelTitle: '修改这条提问', forkAction: '创建分支',
         copied: '已复制',
         copyFailed: '复制失败',
         clearTranslations: '清空翻译',
@@ -487,6 +488,7 @@ globalThis.__ModuleLoader__.load({
         source: 'Source',
         result: 'Translation',
         copy: 'Copy',
+        copySource: 'Copy source', copySourceHint: 'Copy original Markdown / LaTeX source', editPanelTitle: 'Edit this question', forkAction: 'Create branch',
         copied: 'Copied',
         copyFailed: 'Copy failed',
         clearTranslations: 'Clear translations',
@@ -646,6 +648,17 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-model-picker:focus-visible,.dsr-history-toggle:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .dsr-model-picker:disabled{opacity:.6;cursor:default}
 .dsr-side-notice{flex:none;padding:7px 14px 0}
+.dsr-message-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:7px 0 0;padding:0 1px}
+.dsr-msg-user .dsr-message-actions{justify-content:flex-end}
+.dsr-message-action{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:28px;padding:4px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;background:var(--dsw-alias-bg-base);font:inherit;font-size:10.5px;line-height:1.4;color:var(--dsw-alias-label-secondary);cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+.dsr-message-action:hover{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}
+.dsr-message-action:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.dsr-message-action:disabled{opacity:.4;cursor:not-allowed}
+.dsr-message-action[data-copied="true"]{color:var(--dsw-alias-brand-primary);border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 35%,var(--dsw-alias-border-l1))}
+.dsr-message-action.primary{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-bg-base))}
+.dsr-message-action.primary:hover{filter:brightness(.95)}
+.dsr-edit-panel{padding:2px}
+.dsr-edit-title{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;margin:0 0 9px;color:var(--dsw-alias-label-primary)}
 .dsr-edit-question{width:100%;min-height:90px;resize:vertical;padding:8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit}
 .dsr-edit-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
 .dsr-edit-hint{font-size:11px;color:var(--dsw-alias-label-secondary);margin:6px 0}
@@ -1728,26 +1741,41 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     }
 
     async function streamPost(path, payload, signal, onFrame) {
-      const response = await apiPost(path, payload)
+      const response = await apiPost(path, payload, { signal })
       if (response.body === null) throw new Error('浏览器不支持流式响应。')
       const reader = response.body.getReader()
       const decoder = new TextDecoder('utf-8')
-      let buffer = ''
+      let buffer = '', terminal = false, completed = false
+      const acceptLine = line => {
+        if (!line.trim()) return
+        let frame
+        try { frame = JSON.parse(line) } catch {
+          throw Object.assign(new Error('响应数据不完整或格式无效；已保留收到的内容，请重试。'), { code: 'STREAM_INVALID' })
+        }
+        if (!frame || typeof frame !== 'object' || typeof frame.type !== 'string') throw Object.assign(new Error('响应帧格式无效。'), { code: 'STREAM_INVALID' })
+        if (terminal) throw Object.assign(new Error('响应在结束标记后仍包含数据。'), { code: 'STREAM_INVALID' })
+        if (['done', 'error', 'aborted'].includes(frame.type)) terminal = true
+        onFrame(frame)
+      }
       try {
         while (true) {
+          if (signal?.aborted) throw Object.assign(new Error('已停止生成。'), { name: 'AbortError' })
           const { done, value } = await reader.read()
           if (done) break
           buffer += decoder.decode(value, { stream: true })
           let newline
           while ((newline = buffer.indexOf('\n')) !== -1) {
-            const line = buffer.slice(0, newline).trim()
+            const line = buffer.slice(0, newline)
             buffer = buffer.slice(newline + 1)
-            if (line !== '') onFrame(JSON.parse(line))
+            acceptLine(line)
           }
         }
         buffer += decoder.decode()
-        if (buffer.trim() !== '') onFrame(JSON.parse(buffer.trim()))
+        acceptLine(buffer)
+        if (!terminal) throw Object.assign(new Error('响应在收到完成标记前中断；已保留收到的内容，请重试。'), { code: 'STREAM_INCOMPLETE' })
+        completed = true
       } finally {
+        if (!completed) await reader.cancel().catch(() => {})
         reader.releaseLock()
       }
     }
@@ -1771,6 +1799,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           return false
         }
       }
+    }
+
+    async function copyMessageSource(message) {
+      return copyText(typeof message?.text === 'string' ? message.text : '')
     }
 
     function formatModel(model) {
@@ -2007,6 +2039,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           return [h('path', { key: 'a', d: 'm6 9 6 6 6-6' })]
         case 'refresh':
           return [h('path', { key: 'a', d: 'M20 11a8 8 0 1 0-2.1 6.3M20 5v6h-6' })]
+        case 'edit':
+          return [h('path', { key: 'a', d: 'm15 4 5 5M4 20l4-1 12-12a2.1 2.1 0 0 0-3-3L5 16l-1 4Z' })]
+        case 'branch':
+          return [h('circle', { key: 'a', cx: '6', cy: '5', r: '2' }), h('circle', { key: 'b', cx: '6', cy: '19', r: '2' }), h('circle', { key: 'c', cx: '18', cy: '5', r: '2' }), h('path', { key: 'd', d: 'M6 7v10M6 14c7 0 12-1 12-7' })]
         case 'copy':
           return [
             h('rect', { key: 'a', x: '8', y: '8', width: '11', height: '11', rx: '2' }),
@@ -2924,6 +2960,18 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     const MessageBubble = React.memo(function MessageBubble({ message, t, docId, onAhead, onReadPage, onToast, onEdit, onFork, busy }) {
       const [editing, setEditing] = useState(false)
       const [editedText, setEditedText] = useState('')
+      const [copied, setCopied] = useState(false)
+      const copyTimerRef = useRef(null)
+      const mountedRef = useRef(true)
+      useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; window.clearTimeout(copyTimerRef.current) } }, [])
+      const copySource = async () => {
+        const ok = await copyMessageSource(message)
+        if (!mountedRef.current) return
+        if (!ok) { onToast?.(t('copyFailed')); return }
+        setCopied(true)
+        window.clearTimeout(copyTimerRef.current)
+        copyTimerRef.current = window.setTimeout(() => setCopied(false), 1600)
+      }
       const submitEdit = branch => {
         if (!editedText.trim() || busy) return
         onEdit(message.id, editedText.trim(), branch)
@@ -2934,8 +2982,6 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       return h('div', { className: cls('dsr-msg', isUser ? 'dsr-msg-user' : 'dsr-msg-assistant') },
         h('div', { className: 'dsr-msg-meta' },
           h('span', null, isUser ? t('you') : t('appName')),
-          isUser ? h('button', { type: 'button', className: 'dsr-mini-btn', disabled: busy, onClick: () => { setEditedText(message.text); setEditing(true) } }, t('editQuestion')) : null,
-          h('button', { type: 'button', className: 'dsr-mini-btn', disabled: busy || message.pending, onClick: () => onFork(message.id) }, t('forkHere')),
           !isUser && message.mode ? h('span', { className: 'dsr-msg-mode' }, modeLabel) : null
         ),
         h('div', { className: 'dsr-msg-bubble' },
@@ -2944,13 +2990,14 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             message.quote
           ) : null,
           isUser
-            ? editing ? h('div', null,
+            ? editing ? h('div', { className: 'dsr-edit-panel' },
+              h('div', { className: 'dsr-edit-title' }, h(Icon, { name: 'edit', size: 14 }), t('editPanelTitle')),
               h('textarea', { className: 'dsr-edit-question', value: editedText, autoFocus: true, 'aria-label': t('editQuestion'), onChange: event => setEditedText(event.target.value), onKeyDown: event => { if (event.key === 'Escape') { event.stopPropagation(); setEditing(false) } } }),
               h('p', { className: 'dsr-edit-hint' }, t('editHint')),
               h('div', { className: 'dsr-edit-actions' },
-                h('button', { type: 'button', className: 'dsr-mini-btn', disabled: busy || !editedText.trim(), onClick: () => submitEdit(false) }, t('editResend')),
-                h('button', { type: 'button', className: 'dsr-mini-btn', disabled: busy || !editedText.trim(), onClick: () => submitEdit(true) }, t('editFork')),
-                h('button', { type: 'button', className: 'dsr-mini-btn', onClick: () => setEditing(false) }, t('cancel'))))
+                h('button', { type: 'button', className: 'dsr-message-action primary', disabled: busy || !editedText.trim(), onClick: () => submitEdit(false) }, h(Icon, { name: 'send', size: 12 }), t('editResend')),
+                h('button', { type: 'button', className: 'dsr-message-action', disabled: busy || !editedText.trim(), onClick: () => submitEdit(true) }, h(Icon, { name: 'branch', size: 12 }), t('editFork')),
+                h('button', { type: 'button', className: 'dsr-message-action', onClick: () => setEditing(false) }, t('cancel'))))
               : h('div', { style: { whiteSpace: 'pre-wrap' } }, message.text)
             : h('div', null,
               h(ReasoningBlock, {
@@ -2983,7 +3030,12 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                 live: message.pending === true,
               })
             )
-        )
+        ),
+        !editing ? h('div', { className: 'dsr-message-actions', role: 'group', 'aria-label': isUser ? t('editQuestion') : t('appName') },
+          h('button', { type: 'button', className: 'dsr-message-action', disabled: !message.text, title: t('copySourceHint'), 'aria-label': t('copySourceHint'), 'data-copied': copied, onClick: () => void copySource() },
+            h(Icon, { name: copied ? 'check' : 'copy', size: 12 }), copied ? t('copied') : t('copySource')),
+          isUser ? h('button', { type: 'button', className: 'dsr-message-action', disabled: busy, title: t('editQuestion'), onClick: () => { setEditedText(message.text); setEditing(true) } }, h(Icon, { name: 'edit', size: 12 }), t('editQuestion')) : null,
+          h('button', { type: 'button', className: 'dsr-message-action', disabled: busy || message.pending, title: t('forkHere'), onClick: () => onFork(message.id) }, h(Icon, { name: 'branch', size: 12 }), t('forkAction'))) : null
       )
     })
 
@@ -5519,13 +5571,13 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             } else if (frame.type === 'done') {
               stopFlush()
               updateRequestMessages(previous => previous.map(message => message.id === assistantId
-                ? { ...message, pending: false, model: frame.model, provider: frame.provider }
+                ? { ...message, pending: false, model: frame.model, provider: frame.provider, finishReason: frame.finishReason || 'stop', usage: frame.usage }
                 : message))
             } else if (frame.type === 'error') {
               stopFlush()
               streamError = frame.message
               updateRequestMessages(previous => previous.map(message => message.id === assistantId
-                ? { ...message, pending: false, error: frame.message }
+                ? { ...message, pending: false, error: frame.message, errorCode: frame.code, finishReason: frame.finishReason, usage: frame.usage }
                 : message))
             } else if (frame.type === 'aborted') {
               stopFlush()
@@ -5549,7 +5601,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           } else {
             const message = error instanceof Error ? error.message : String(error)
             updateRequestMessages(previous => previous.map(item => item.id === assistantId
-              ? { ...item, pending: false, error: message }
+              ? { ...item, pending: false, error: message, errorCode: error.code || 'STREAM_ERROR' }
               : item))
           }
         } finally {
@@ -5709,7 +5761,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               setTranslations(previous => previous.map(item => item.id === id ? { ...item, status: 'done' } : item))
             } else if (frame.type === 'error') {
               stopFlush()
-              setTranslations(previous => previous.map(item => item.id === id ? { ...item, status: 'error', error: frame.message } : item))
+              setTranslations(previous => previous.map(item => item.id === id ? { ...item, status: 'error', error: frame.message, errorCode: frame.code, finishReason: frame.finishReason, usage: frame.usage } : item))
             } else if (frame.type === 'aborted') {
               stopFlush()
               setTranslations(previous => previous.map(item => item.id === id ? { ...item, status: 'aborted' } : item))

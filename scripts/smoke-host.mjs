@@ -363,6 +363,44 @@ try {
   }
   expect((await getJson('/bootstrap')).body.model.model === 'fake-model', 'request selection never changes global default')
 
+  expect(host.app.config.maxAnswerTokens === 16384, 'default answer budget supports long reasoning answers')
+  const originalStream = llm.stream
+  for (const endpoint of ['/ask', '/translate']) {
+    for (const outcome of ['max-tokens', 'eof', 'error', 'aborted']) {
+      let requests = 0
+      llm.stream = () => {
+        requests += 1
+        return (async function* () {
+          yield { type: 'text-delta', text: 'partial [第' }
+          if (outcome === 'eof') return
+          if (outcome === 'error') throw Object.assign(new Error('connection lost'), {code:'ECONNRESET'})
+          yield { type: 'usage', usage: { outputTokens: 4096 } }
+          yield { type: 'finish', reason: { kind: outcome } }
+        })()
+      }
+      const response = await post(endpoint, {docId:doc.id,question:'stream terminal test',selection:'Hello',blockId:0,currentPage:1})
+      const frames = response.text.trim().split('\n').map(line=>JSON.parse(line))
+      const terminal = frames.at(-1)
+      expect(frames.filter(frame=>frame.type==='delta').map(frame=>frame.text).join('') === 'partial [第', endpoint+' preserves even the buffered short first line on '+outcome)
+      expect(!frames.some(frame=>frame.type==='done'), endpoint+' must not report truncated '+outcome+' as done')
+      const code = {'max-tokens':'MAX_TOKENS',eof:'STREAM_INCOMPLETE',error:'ECONNRESET',aborted:'ABORTED'}[outcome]
+      expect(terminal.type === (outcome === 'aborted' ? 'aborted' : 'error'), endpoint+' reports distinct terminal type '+outcome)
+      if (outcome !== 'aborted') expect(terminal.code === code && terminal.partial === true, endpoint+' carries coded partial failure '+outcome)
+      const meta=frames.find(frame=>frame.type==='meta')
+      const details=await getJson('/context?id='+doc.id+'&entry='+meta.contextId)
+      expect(details.body.entry.status === (outcome === 'aborted'?'aborted':'error'), endpoint+' audit should not say done after '+outcome)
+      if (outcome === 'max-tokens' && endpoint === '/ask') expect(details.body.entry.calls.at(-1).finishReason==='max-tokens', 'request audit retains exact finish reason')
+      if (outcome === 'max-tokens') expect(terminal.usage?.outputTokens === 4096, endpoint+' terminal retains output-token usage')
+      expect(requests===1, endpoint+' should not silently retry partial '+outcome)
+    }
+  }
+  llm.stream = () => asyncChunks([{type:'text-delta',text:'partial overview'},{type:'finish',reason:{kind:'max-tokens'}}])
+  const partialOverview=await post('/ask',{docId:doc.id,question:'overview',overview:true})
+  const overviewFailureFrames=partialOverview.text.trim().split('\n').map(line=>JSON.parse(line))
+  expect(overviewFailureFrames.some(frame=>frame.type==='delta' && frame.text==='partial overview'), 'overview retains partial batch on truncation')
+  expect(overviewFailureFrames.at(-1).code==='MAX_TOKENS' && !overviewFailureFrames.some(frame=>frame.type==='done'), 'overview truncation is explicitly non-normal')
+  llm.stream=originalStream
+
   const missing = await getJson(`/context?id=${encodeURIComponent(doc.id)}&entry=missing`)
   expect(missing.status === 404, 'unknown context should return 404')
 
