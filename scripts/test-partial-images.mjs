@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createReadingSession, answerWithReading } from '../lib/reading.js'
+import { createReadingSession, answerWithReading, estimateRequest } from '../lib/reading.js'
+import { DEFAULTS } from '../lib/app.js'
 
 // Only the image-production boundary and streamed LLM transport are substituted.
 // Session policy, partial-result construction, admission and commits are real.
@@ -256,4 +257,102 @@ test('actual answerWithReading budget rejection omits images and commits no succ
   assert.deepEqual(ids(retry), ['image-1'])
   assert.deepEqual(seen(session), [1])
   assert.equal(session.images.length, 1)
+})
+
+function assertRequestsWithinBudget(transport, budget) {
+  for (const request of transport.requests) {
+    const actual = estimateRequest(transport.ctx, { provider: 'test', model: 'test-model' }, request.system, request.messages, request.tools)
+    assert.ok(actual <= budget, `complete request ${actual} must fit ${budget}`)
+  }
+}
+
+test('tool admission shrinks initial replaceable text and retains crop plus allowed images', async () => {
+  const args = { pages: [4, 1, 2], format: 'image', offset: 0, crop: null, reason: 'Inspect figures' }
+  const transport = fakeTransport(args, { visualTokens: 6000 })
+  const invoked = []
+  const session = makeSession({ mode: 'learn', currentPage: 4, anchor: 3, getImage: async page => { invoked.push(page); return packed(page) } })
+  let fits = 0
+  await answer(transport.ctx, session, {
+    built: { system: 'Inspect cited figures.', prompt: 'A'.repeat(18000) }, images: [packed('crop').ref],
+    fitPrompt: () => { fits++; return 'A'.repeat(fits === 1 ? 8000 : 500) },
+  })
+  assert.ok(fits > 0, 'tool result must shrink even when initial request fits')
+  assert.deepEqual(invoked, [1, 2], 'current page must never render')
+  const next = transport.requests[1]
+  assert.ok(next.messages[0].content[0].text.length < 18000)
+  assert.equal(next.messages[0].content[1].attachment.attachmentId, 'image-crop')
+  const tool = next.messages.find(message => message.role === 'tool')
+  assert.deepEqual(tool.content.filter(block => block.type === 'image').map(block => block.attachment.attachmentId), ['image-1', 'image-2'])
+  assert.match(JSON.parse(tool.content[0].text).pages[0].error, /学习模式/)
+  assert.deepEqual(seen(session), [1, 2])
+  assertRequestsWithinBudget(transport, 24000)
+})
+
+test('budget admits fitting subset and keeps dropped pages retryable', async () => {
+  const transport = fakeTransport({ pages: [1, 2, 3], format: 'image', offset: 0, crop: null, reason: 'Inspect' })
+  transport.ctx.get('llm').imageRequestPricing = () => ({ priceImages: pictures => pictures.map(block => ({ visualTokens: block.attachment.attachmentId === 'image-1' ? 50000 : 6000 })) })
+  const invoked = []
+  const session = makeSession({ imageLimit: 3, getImage: async page => { invoked.push(page); return packed(page) } })
+  await answer(transport.ctx, session, { config: { ...config, maxInputTokens: 11000 } })
+  const tool = transport.requests[1].messages.find(message => message.role === 'tool')
+  assert.equal(tool.isError, undefined)
+  const pages = JSON.parse(tool.content[0].text).pages
+  assert.deepEqual(tool.content.filter(block => block.type === 'image').map(block => block.attachment.attachmentId), ['image-2'])
+  assert.deepEqual(pages.map(page => page.imageIndex), [undefined, 0, undefined])
+  assert.match(pages[0].error, /预算/)
+  assert.match(pages[2].error, /预算/)
+  assert.deepEqual(seen(session), [2])
+  assert.deepEqual(session.images.map(image => image.page), [2])
+  assert.deepEqual(session.traces[0].pages, [2])
+  assert.deepEqual(session.traces[0].failures.map(item => item.page), [1, 3])
+  assert.equal(JSON.parse(tool.content[0].text).remainingPages, 5)
+  const retry = await session.execute(call([2, 3]))
+  assert.deepEqual(invoked, [1, 2, 3, 3], 'accepted page cached, dropped page retried')
+  assert.deepEqual(ids(retry), ['image-3'])
+  assert.deepEqual(seen(session), [2, 3])
+  assertRequestsWithinBudget(transport, 11000)
+})
+
+test('raised defaults admit crop plus pages 76 and 79 without reading forbidden page 86', async () => {
+  const largeDoc = { ...doc, pages: Array.from({ length: 90 }, () => ({})), blocks: Array.from({ length: 90 }, (_, id) => ({ id, page: id, text: `Evidence ${id + 1}` })) }
+  const transport = fakeTransport({ pages: [86, 76, 79], format: 'image', offset: 0, crop: null, reason: 'Compare figures' }, { visualTokens: 10000 })
+  transport.ctx.get('llm').resolveModelInfo = async () => ({ context: { contextWindow: 128000 } })
+  const invoked = []
+  const session = createReadingSession({ doc: largeDoc, mode: 'learn', anchor: 85, currentPage: 86,
+    config: DEFAULTS, vision: true, imageLimit: 3, getImage: async page => { invoked.push(page); return packed(page) } })
+  await answer(transport.ctx, session, { config: DEFAULTS, images: [packed('crop86').ref] })
+  assert.deepEqual(invoked, [76, 79])
+  const next = transport.requests[1]
+  const tool = next.messages.find(message => message.role === 'tool')
+  assert.match(JSON.parse(tool.content[0].text).pages[0].error, /学习模式/)
+  assert.deepEqual(tool.content.filter(block => block.type === 'image').map(block => block.attachment.attachmentId), ['image-76', 'image-79'])
+  assert.deepEqual(seen(session), [76, 79])
+  const complete = estimateRequest(transport.ctx, { provider: 'test', model: 'test-model' }, next.system, next.messages, next.tools)
+  assert.ok(complete > 24000, 'old artificial cap could not admit this batch')
+  assertRequestsWithinBudget(transport, Math.min(DEFAULTS.maxInputTokens, 128000 - 8192 - 1024))
+})
+
+test('prompt fitting has a fixed work bound even when every replacement shrinks', async () => {
+  const transport = fakeTransport({ pages: [1], format: 'image', offset: 0, crop: null, reason: 'Inspect' }, { visualTokens: 50000 })
+  const session = makeSession()
+  let attempts = 0
+  await answer(transport.ctx, session, { built: { system: 'Inspect.', prompt: 'A'.repeat(20000) },
+    fitPrompt: () => 'A'.repeat(20000 - 200 * ++attempts) })
+  assert.equal(attempts, 16)
+  assert.equal(transport.requests[1].messages[0].content[0].text.length, 16800)
+  assertEmpty(session)
+  assertRequestsWithinBudget(transport, 24000)
+})
+
+test('nonshrinking fitPrompt cannot grow input and terminates immediately', async () => {
+  for (const replacement of ['tiny', 'A'.repeat(10000)]) {
+    const transport = fakeTransport({ pages: [1], format: 'image', offset: 0, crop: null, reason: 'Inspect' }, { visualTokens: 50000 })
+    const session = makeSession()
+    let attempts = 0
+    await answer(transport.ctx, session, { built: { system: 'Inspect.', prompt: 'tiny' }, fitPrompt: () => { attempts++; return replacement } })
+    assert.equal(attempts, 1)
+    assert.equal(transport.requests[1].messages[0].content[0].text, 'tiny')
+    assertEmpty(session)
+    assertRequestsWithinBudget(transport, 24000)
+  }
 })

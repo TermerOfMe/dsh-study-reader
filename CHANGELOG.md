@@ -12,6 +12,14 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
 
+## [1.16.4] - 2026-11-12
+
+### Fixed
+- 问答与译文支持行内和独立数学公式（`$…$`、`$$…$$`、`\(…\)`、`\[…\]`），使用同源本地 KaTeX 及字体；代码片段保持原样，禁用受信任 HTML/链接命令。
+- 默认单次输入预算从 24,000 提高到 196,608 tokens，累计预算从 96,000 提高到 786,432 tokens；实际仍受模型上下文窗口及输出预留约束。
+- 补读图片超预算时先压缩可替代的文字上下文，再按剩余预算保留可容纳的图片；只把实际注入模型的页面记为已读，未注入页面可重试。
+- 保留学习模式当前页补读及后文图片限制，用户主动框选仍作为原始引用处理。
+
 ## [1.16.3] - 2026-11-12
 
 ### Documentation

@@ -196,6 +196,17 @@ const getJson = async path => {
 }
 
 try {
+  for (const [asset, mime] of [['katex.mjs', 'text/javascript'], ['katex.min.css', 'text/css'], ['fonts/KaTeX_Main-Regular.woff2', 'font/woff2']]) {
+    const response = await fetch(`${base}/vendor/katex/${asset}`)
+    expect(response.status === 200, `math asset ${asset} should load`)
+    expect(response.headers.get('content-type')?.startsWith(mime), `math asset ${asset} MIME`)
+    expect((await response.arrayBuffer()).byteLength > 0, `math asset ${asset} should not be empty`)
+  }
+  for (const asset of ['package.json', '..%2f..%2fpackage.json', '%00', 'fonts/not-found.woff2']) {
+    const response = await fetch(`${base}/vendor/katex/${asset}`)
+    expect(response.status >= 400, `invalid math asset ${asset} rejected`)
+    await response.arrayBuffer()
+  }
   const opened = await post('/open', { path: 'sample.pdf' })
   expect(opened.status === 200, `open failed: ${opened.text}`)
   const doc = JSON.parse(opened.text).doc

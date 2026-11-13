@@ -1848,28 +1848,122 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       return open ? h('button', { type: 'button', className: 'dsr-cite', onClick: () => open(token), title: token }, token.slice(1,-1))
         : h('span', { className: 'dsr-cite' }, token.slice(1,-1))
     }
+    // Protect TeX before Markdown parses brackets, underscores, pipes or line breaks.
+    // Code is copied verbatim. Unclosed streaming delimiters remain readable text.
+    function protectMarkdownMath(value) {
+      const source = String(value ?? '').replace(/\r\n?/g, '\n')
+      let prefix = '\uE000DSRMATH:'
+      while (source.includes(prefix)) prefix += ':'
+      const formulas = []
+      let text = '', i = 0, fence = null
+      const escaped = at => {
+        let count = 0
+        while (at > 0 && source[--at] === '\\') count++
+        return count % 2 === 1
+      }
+      while (i < source.length) {
+        const lineStart = i === 0 || source[i - 1] === '\n'
+        if (lineStart) {
+          const lineEnd = source.indexOf('\n', i)
+          const end = lineEnd < 0 ? source.length : lineEnd + 1
+          const line = source.slice(i, end)
+          const match = /^ {0,3}(\x60{3,}|~{3,})/.exec(line)
+          if (fence !== null || match) {
+            if (fence === null) fence = { char: match[1][0], size: match[1].length }
+            else if (match && match[1][0] === fence.char && match[1].length >= fence.size && line.slice(match[0].length).trim() === '') fence = null
+            text += line; i = end; continue
+          }
+        }
+        if (source[i] === '\x60' && !escaped(i)) {
+          const run = /^\x60+/.exec(source.slice(i))[0]
+          let end = source.indexOf(run, i + run.length)
+          while (end >= 0 && (source[end - 1] === '\x60' || source[end + run.length] === '\x60')) end = source.indexOf(run, end + run.length)
+          if (end >= 0) { text += source.slice(i, end + run.length); i = end + run.length; continue }
+        }
+        const linkTarget = source[i] === ']' ? /^\]\(https?:\/\/[^\s)]+\)/.exec(source.slice(i)) : null
+        if (linkTarget) { text += linkTarget[0]; i += linkTarget[0].length; continue }
+        let open = '', close = '', display = false
+        if (!escaped(i)) {
+          if (source.startsWith('\\[', i)) { open = '\\['; close = '\\]'; display = true }
+          else if (source.startsWith('\\(', i)) { open = '\\('; close = '\\)' }
+          else if (source.startsWith('$$', i)) { open = close = '$$'; display = true }
+          else if (source[i] === '$' && !/\s/.test(source[i + 1] ?? ' ') && source[i + 1] !== '$') { open = close = '$' }
+        }
+        if (open) {
+          const start = i + open.length
+          let end = source.indexOf(close, start)
+          while (end >= 0 && (escaped(end) || (close === '$' && (source[end + 1] === '$' || source[end - 1] === '$' || /\s/.test(source[end - 1]) || /\d/.test(source[end + 1] ?? ''))))) end = source.indexOf(close, end + close.length)
+          if (end >= 0 && (open !== '$' || !source.slice(start, end).includes('\n')) && source.slice(start, end).trim()) {
+            const tex = source.slice(start, end)
+            const token = prefix + formulas.length + '\uE001'
+            formulas.push({ tex, display, raw: source.slice(i, end + close.length) })
+            text += display ? '\n' + token + '\n' : token
+            i = end + close.length; continue
+          }
+        }
+        text += source[i++]
+      }
+      return { text, prefix, formulas }
+    }
+
+    let katexLoader = null
+    function loadKatex() {
+      if (katexLoader === null) {
+        const promise = import(vendorUrl('/vendor/katex/katex.mjs')).then(module => module.default ?? module)
+        katexLoader = promise
+        promise.catch(() => { if (katexLoader === promise) katexLoader = null })
+      }
+      return katexLoader
+    }
+
+    function renderMathHtml(katex, tex, display) {
+      // A new macros object per render prevents global definitions leaking across answers.
+      return katex.renderToString(tex, {
+        displayMode: display, output: 'htmlAndMathml', throwOnError: true,
+        trust: false, strict: 'ignore', maxExpand: 1000, maxSize: 20, macros: {},
+      })
+    }
+
+    const MathRuntimeContext = React.createContext(null)
+    function MathFormula({ formula }) {
+      const engine = React.useContext(MathRuntimeContext)
+      let html = null
+      if (engine !== null && formula.tex.length <= 32000) {
+        try { html = renderMathHtml(engine, formula.tex, formula.display) } catch { /* readable TeX fallback */ }
+      }
+      return h('span', { className: cls('dsr-math', formula.display && 'dsr-math-display') },
+        html === null
+          ? h('span', { className: 'dsr-math-source' }, formula.raw)
+          : h('span', { dangerouslySetInnerHTML: { __html: html } })
+      )
+    }
+
     const INLINE_RE = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|\[(?:第\s*\d+\s*[页张]|B\d+)\])/g
 
-    function inlineNodes(text, keyPrefix) {
+    function inlineNodes(text, keyPrefix, math = null) {
       const nodes = []
       let last = 0
       let match
       let index = 0
-      const pattern = new RegExp(INLINE_RE.source, 'g')
+      const mathPattern = math === null ? '' : math.prefix + '\\d+\uE001|'
+      const pattern = new RegExp(mathPattern + INLINE_RE.source, 'g')
       while ((match = pattern.exec(text)) !== null) {
         if (match.index > last) nodes.push(text.slice(last, match.index))
         const token = match[0]
         const key = `${keyPrefix}-i${index++}`
-        if (token.startsWith('**') && token.endsWith('**')) {
-          nodes.push(h('strong', { key }, inlineNodes(token.slice(2, -2), key)))
+        if (math !== null && token.startsWith(math.prefix)) {
+          const formula = math.formulas[Number(token.slice(math.prefix.length, -1))]
+          nodes.push(formula ? h(MathFormula, { key, formula }) : token)
+        } else if (token.startsWith('**') && token.endsWith('**')) {
+          nodes.push(h('strong', { key }, inlineNodes(token.slice(2, -2), key, math)))
         } else if (token.startsWith('`') && token.endsWith('`')) {
           nodes.push(h('code', { key }, token.slice(1, -1)))
         } else if (token.startsWith('*') && token.endsWith('*')) {
-          nodes.push(h('em', { key }, inlineNodes(token.slice(1, -1), key)))
+          nodes.push(h('em', { key }, inlineNodes(token.slice(1, -1), key, math)))
         } else if (token.startsWith('[') && token.includes('](')) {
           const link = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(token)
           if (link !== null) {
-            nodes.push(h('a', { key, href: link[2], target: '_blank', rel: 'noreferrer noopener' }, link[1]))
+            nodes.push(h('a', { key, href: link[2], target: '_blank', rel: 'noreferrer noopener' }, inlineNodes(link[1], key, math)))
           } else nodes.push(token)
         } else {
           nodes.push(h(Citation, { key, token }))
@@ -1884,13 +1978,23 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     // Memoizing both the Markdown tree and each settled message keeps a
     // reasoning-only frame from re-rendering every previous answer.
     const Markdown = React.memo(function Markdown({ text }) {
-      const lines = useMemo(() => String(text ?? '').replace(/\r\n?/g, '\n').split('\n'), [text])
+      const math = useMemo(() => protectMarkdownMath(text), [text])
+      const lines = useMemo(() => math.text.split('\n'), [math])
+      const [mathEngine, setMathEngine] = useState(null)
+      const [mathCssReady, setMathCssReady] = useState(false)
+      const hasMath = math.formulas.length > 0
+      useEffect(() => {
+        if (!hasMath) return undefined
+        let active = true
+        loadKatex().then(value => { if (active) setMathEngine(value) }).catch(() => {})
+        return () => { active = false }
+      }, [hasMath])
       const blocks = useMemo(() => {
         const out = []
         let index = 0
         let key = 0
-        const isBlockStart = line => /^\s*(#{1,6})\s+/.test(line)
-          || /^\s*```/.test(line)
+        const isBlockStart = line => line.trim().startsWith(math.prefix) || /^\s*(#{1,6})\s+/.test(line)
+          || /^ {0,3}(?:`{3,}|~{3,})/.test(line)
           || /^\s*(?:[-*+]|\d+[.)])\s+/.test(line)
           || /^\s*>\s?/.test(line)
           || /^\s*(?:---+|\*\*\*+)\s*$/.test(line)
@@ -1901,11 +2005,26 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             index += 1
             continue
           }
-          const fence = /^\s*```/.exec(line)
+          if (line.trim().startsWith(math.prefix)) {
+            const token = line.trim()
+            const formula = math.formulas[Number(token.slice(math.prefix.length, -1))]
+            if (formula?.display) {
+              out.push(h('div', { key: `b${key++}`, className: 'dsr-math-block' }, h(MathFormula, { formula })))
+              index += 1
+              continue
+            }
+          }
+          const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line)
           if (fence !== null) {
+            const fenceChar = fence[1][0]
+            const fenceSize = fence[1].length
+            const closesFence = value => {
+              const close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(value)
+              return close !== null && close[1][0] === fenceChar && close[1].length >= fenceSize
+            }
             index += 1
             const code = []
-            while (index < lines.length && !/^\s*```/.test(lines[index])) {
+            while (index < lines.length && !closesFence(lines[index])) {
               code.push(lines[index])
               index += 1
             }
@@ -1916,7 +2035,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           const heading = /^(#{1,6})\s+(.+)$/.exec(line)
           if (heading !== null) {
             const level = Math.min(4, heading[1].length)
-            out.push(h(`h${level}`, { key: `b${key++}` }, inlineNodes(heading[2], `h${key}`)))
+            out.push(h(`h${level}`, { key: `b${key++}` }, inlineNodes(heading[2], `h${key}`, math)))
             index += 1
             continue
           }
@@ -1926,7 +2045,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               quote.push(lines[index].replace(/^\s*>\s?/, ''))
               index += 1
             }
-            out.push(h('blockquote', { key: `b${key++}` }, h('p', null, inlineNodes(quote.join(' '), `q${key}`))))
+            out.push(h('blockquote', { key: `b${key++}` }, h('p', null, inlineNodes(quote.join(' '), `q${key}`, math))))
             continue
           }
           if (/^\s*(?:[-*+]|\d+[.)])\s+/.test(line)) {
@@ -1936,7 +2055,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               items.push(lines[index].replace(/^\s*(?:[-*+]|\d+[.)])\s+/, ''))
               index += 1
             }
-            out.push(h(ordered ? 'ol' : 'ul', { key: `b${key++}` }, items.map((item, itemIndex) => h('li', { key: itemIndex }, inlineNodes(item, `li${key}-${itemIndex}`)))))
+            out.push(h(ordered ? 'ol' : 'ul', { key: `b${key++}` }, items.map((item, itemIndex) => h('li', { key: itemIndex }, inlineNodes(item, `li${key}-${itemIndex}`, math)))))
             continue
           }
           if (/^\s*(?:---+|\*\*\*+)\s*$/.test(line)) {
@@ -1954,8 +2073,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               index += 1
             }
             out.push(h('table', { key: `b${key++}` },
-              h('thead', null, h('tr', null, header.map((cell, cellIndex) => h('th', { key: cellIndex }, inlineNodes(cell, `th${key}-${cellIndex}`))))),
-              h('tbody', null, rows.map((row, rowIndex) => h('tr', { key: rowIndex }, row.map((cell, cellIndex) => h('td', { key: cellIndex }, inlineNodes(cell, `td${key}-${rowIndex}-${cellIndex}`))))))
+              h('thead', null, h('tr', null, header.map((cell, cellIndex) => h('th', { key: cellIndex }, inlineNodes(cell, `th${key}-${cellIndex}`, math))))),
+              h('tbody', null, rows.map((row, rowIndex) => h('tr', { key: rowIndex }, row.map((cell, cellIndex) => h('td', { key: cellIndex }, inlineNodes(cell, `td${key}-${rowIndex}-${cellIndex}`, math))))))
             ))
             continue
           }
@@ -1965,12 +2084,16 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             paragraph.push(lines[index])
             index += 1
           }
-          out.push(h('p', { key: `b${key++}` }, inlineNodes(paragraph.join(' '), `p${key}`)))
+          out.push(h('p', { key: `b${key++}` }, inlineNodes(paragraph.join(' '), `p${key}`, math)))
         }
         return out
-      }, [lines])
+      }, [lines, math])
       if (blocks.length === 0) return null
-      return h('div', { className: 'dsr-md' }, blocks)
+      return h(MathRuntimeContext.Provider, { value: mathCssReady ? mathEngine : null },
+        h('div', { className: 'dsr-md' },
+        hasMath ? h('link', { rel: 'stylesheet', href: vendorUrl('/vendor/katex/katex.min.css'), onLoad: () => setMathCssReady(true), onError: () => setMathCssReady(false) }) : null,
+        h('style', null, '.dsr-md .dsr-math{white-space:normal}.dsr-md .dsr-math-block{overflow-x:auto;max-width:100%;margin:.8em 0}.dsr-md .dsr-math-display{display:block}.dsr-md .dsr-math-source{white-space:pre-wrap;overflow-wrap:anywhere;font-family:monospace}.dsr-md .katex-display{margin:.4em 0}.dsr-md .katex{color:inherit}'),
+        blocks))
     })
 
     // ── small controls ───────────────────────────────────────────────────────
