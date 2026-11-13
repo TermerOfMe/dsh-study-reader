@@ -74,14 +74,18 @@ function asyncChunks(chunks) {
   })()
 }
 
+const routedCalls = [], modalityCalls = []
 const llm = {
-  async resolveModelInfo() {
+  async listProviders() { return [{ id: 'fake', name: 'Fake' }, { id: 'selected', name: 'Selected' }] },
+  async resolveModelInfo(provider, model) {
+    modalityCalls.push({ provider, model })
     return { inputModalities: ['image'] }
   },
-  async listModels() {
-    return []
+  async listModels(provider) {
+    return [{ provider, id: provider === 'selected' ? 'selected-model' : 'fake-model', name: 'Test model' }]
   },
   stream(options) {
+    routedCalls.push({ provider: options.provider, model: options.model })
     if (options.messages?.[0]?.content?.[0]?.text?.includes('ADAPTIVE_TEST')) {
       const results = options.messages.filter(message => message.role === 'tool')
       if (results.length < 2) {
@@ -166,7 +170,7 @@ const expect = (condition, message) => {
 }
 
 const annotationDirectory = await mkdtemp(join(tmpdir(), 'dsh-study-http-'))
-const hostConfig = { maxDocumentBytes: 0, visionMaxPages: 2, annotationDirectory, readingPositionDirectory: join(annotationDirectory, 'positions') }
+const hostConfig = { maxDocumentBytes: 0, visionMaxPages: 2, annotationDirectory, readingPositionDirectory: join(annotationDirectory, 'positions'), conversationDirectory: join(annotationDirectory, 'conversations') }
 let host = installStudyHost(ctx, hostConfig)
 const server = createServer((req, res) => {
   if (registered === undefined) {
@@ -213,6 +217,17 @@ try {
   const doc = JSON.parse(opened.text).doc
   expect(typeof doc.id === 'string' && doc.id !== '', 'open should return a document id')
 
+  const models = await getJson('/models')
+  expect(models.status === 200 && models.body.models.some(item => item.provider === 'selected' && item.model === 'selected-model'), 'configured models endpoint returns provider and model names')
+  const emptyConversations = await getJson('/conversations?id=' + doc.id)
+  expect(emptyConversations.status === 200 && emptyConversations.body.conversations.length === 0 && emptyConversations.body.activeId === null, 'new document has no conversations')
+  const thread = { id: 'thread-1', title: 'Test', messages: [{ id: 'm1', role: 'user', text: 'Hello', unknown: { page: 2 } }], draft: 'draft', quote: null, modelSelection: { provider: 'selected', model: 'selected-model' }, mode: 'learn', createdAt: Date.now(), updatedAt: Date.now() }
+  const savedThread = await post('/conversations', { docId: doc.id, action: 'save', conversation: thread, activeId: thread.id })
+  expect(savedThread.status === 200 && JSON.parse(savedThread.text).activeId === thread.id, 'conversation saves before extraction')
+  const badThread = await post('/conversations', { docId: doc.id, action: 'save', conversation: { ...thread, mode: 'invalid' } })
+  expect(badThread.status === 400, 'conversation validation has HTTP 400')
+  expect((await getJson('/conversations?id=missing')).status === 404, 'conversation requires loaded document')
+
   const missingPosition = await getJson('/reading-position?id=' + doc.id)
   expect(missingPosition.status === 200 && missingPosition.body.position === null, 'new document position is null before extraction')
   const savedPosition = await post('/reading-position', { docId: doc.id, position: { pageNumber: 2, x: .25, y: .7 }, writerId: 'smoke', revision: 2 })
@@ -230,6 +245,14 @@ try {
   expect(reopened.status === 200, 'document reopens after Host restart')
   const restored = await getJson('/reading-position?id=' + JSON.parse(reopened.text).doc.id)
   expect(restored.status === 200 && restored.body.position.pageNumber === 2 && restored.body.position.y === .7, 'position survives Host instance restart')
+
+  const restoredThreads = await getJson('/conversations?id=' + doc.id)
+  expect(restoredThreads.status === 200 && restoredThreads.body.conversations[0]?.messages[0]?.unknown.page === 2 && restoredThreads.body.activeId === thread.id, 'conversation survives Host recreation with metadata')
+  thread.title = 'Updated'
+  await post('/conversations', { docId: doc.id, action: 'save', conversation: thread })
+  expect((await getJson('/conversations?id=' + doc.id)).body.conversations[0].title === 'Updated', 'conversation update replaces one record')
+  const removedThread = await post('/conversations', { docId: doc.id, action: 'remove', id: thread.id })
+  expect(removedThread.status === 200 && JSON.parse(removedThread.text).conversations.length === 0 && JSON.parse(removedThread.text).activeId === null, 'conversation removal clears active selection')
 
   const extracted = await post('/extract', { docId: doc.id })
   expect(extracted.status === 200, `extract failed: ${extracted.text}`)
@@ -323,6 +346,22 @@ try {
   expect(translateMeta !== undefined && typeof translateMeta.contextId === 'string', 'translate meta should carry a context id')
   expect(translateFrames.some(frame => frame.type === 'reasoning'), 'translate should stream reasoning frames')
   expect(translateFrames.some(frame => frame.type === 'done'), 'translate should finish')
+
+  routedCalls.length = 0
+  modalityCalls.length = 0
+  const chosen = { provider: 'selected', model: 'selected-model' }
+  const selectedAsk = await post('/ask', { docId: doc.id, question: 'ADAPTIVE_TEST', currentPage: 1, blockId: 0, modelSelection: chosen })
+  expect(selectedAsk.status === 200 && selectedAsk.text.includes('selected-model'), 'selected model is reported by ask')
+  expect(routedCalls.length === 3 && routedCalls.every(call => call.provider === chosen.provider && call.model === chosen.model), 'selected model routes every tool continuation')
+  expect(modalityCalls.some(call => call.provider === chosen.provider && call.model === chosen.model), 'vision checks selected model rather than default')
+  routedCalls.length = 0
+  const selectedTranslation = await post('/translate', { docId: doc.id, selection: 'Hello', blockId: 0, modelSelection: chosen })
+  expect(selectedTranslation.status === 200 && routedCalls.length === 1 && routedCalls[0].model === chosen.model, 'translation routes selected model')
+  for (const endpoint of ['/ask', '/translate']) {
+    const invalid = await post(endpoint, { docId: doc.id, question: 'Hello', selection: 'Hello', modelSelection: { provider: 'selected', model: 'missing' } })
+    expect(invalid.status === 400, 'unknown configured model rejects before generation')
+  }
+  expect((await getJson('/bootstrap')).body.model.model === 'fake-model', 'request selection never changes global default')
 
   const missing = await getJson(`/context?id=${encodeURIComponent(doc.id)}&entry=missing`)
   expect(missing.status === 404, 'unknown context should return 404')

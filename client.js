@@ -8,7 +8,7 @@
  * same-origin routes; nothing is appended to the DSH Session log.
  */
 globalThis.__ModuleLoader__.load({
-  id: '@local/dsh-study-reader',
+  id: 'study-reader',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -82,7 +82,7 @@ globalThis.__ModuleLoader__.load({
         featureModesTitle: '两种问答模式',
         featureModesDesc: '学习模式只依赖已读内容，并提醒你“后面马上会讲”；重读模式调用全文，建立跨章节联系。',
         supported: '支持 PDF · DOCX · PPTX · DOC · PPT',
-        modelMissing: '当前没有可用的默认模型，问答和翻译暂不可用。',
+        modelMissing: '请选择可用模型，或在 DSH 设置中配置模型。',
         settings: '设置',
         toc: '目录',
         tocLoading: '目录加载中…',
@@ -140,6 +140,12 @@ globalThis.__ModuleLoader__.load({
         chatTitle: '旁注问答',
         chatSub: '基于当前阅读位置回答',
         newChat: '新对话',
+        conversations: '历史对话', deleteConversation: '删除对话', deleteConversationConfirm: '删除这段对话？此操作无法撤销。',
+        unnamedConversation: '新对话', branchConversation: '分支', forkHere: '从此处分支', editQuestion: '编辑问题',
+        editResend: '编辑并重新提问', editFork: '编辑并创建分支', editHint: '重新提问会替换此问题之后的内容；创建分支会保留原对话。',
+        followDefault: '跟随 DSH 默认模型', refreshModels: '刷新模型列表', modelLoadFailed: '模型列表加载失败',
+        conversationSaveFailed: '对话保存失败，请重试保存', conversationLoadFailed: '历史对话加载失败，请重试打开文档。',
+        conversationSaved: '已开始新对话，旧对话保留在历史中', retrySave: '重试保存',
         clearChat: '清空问答',
         clearChatConfirm: '清空本文档的问答记录？',
         askPlaceholder: '就当前内容提问…',
@@ -322,7 +328,7 @@ globalThis.__ModuleLoader__.load({
         featureModesTitle: 'Two Q&A modes',
         featureModesDesc: 'Learning relies on what you have read and flags explanations that are just ahead. Re-reading uses the whole document to connect ideas.',
         supported: 'PDF · DOCX · PPTX · DOC · PPT',
-        modelMissing: 'No default model is available, so Q&A and translation are disabled.',
+        modelMissing: 'Select an available model, or configure one in DSH settings.',
         settings: 'Settings',
         toc: 'Contents',
         tocLoading: 'Loading contents…',
@@ -380,6 +386,12 @@ globalThis.__ModuleLoader__.load({
         chatTitle: 'Margin Q&A',
         chatSub: 'Answers follow your reading position',
         newChat: 'New thread',
+        conversations: 'Conversations', deleteConversation: 'Delete conversation', deleteConversationConfirm: 'Delete this conversation? This cannot be undone.',
+        unnamedConversation: 'New thread', branchConversation: 'Branch', forkHere: 'Branch from here', editQuestion: 'Edit question',
+        editResend: 'Edit and ask again', editFork: 'Edit in a new branch', editHint: 'Asking again replaces the later messages. A branch keeps the original conversation.',
+        followDefault: 'Follow DSH default model', refreshModels: 'Refresh models', modelLoadFailed: 'Could not load models',
+        conversationSaveFailed: 'Could not save conversation (browser backup retained)', conversationLoadFailed: 'Could not load conversations. Please reopen the document to retry.',
+        conversationSaved: 'New thread ready; previous conversation kept in history', retrySave: 'Retry saving',
         clearChat: 'Clear Q&A',
         clearChatConfirm: 'Clear the Q&A for this document?',
         askPlaceholder: 'Ask about what you are reading…',
@@ -616,6 +628,27 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-tab.on{color:var(--dsw-alias-label-primary)}
 .dsr-tab.on::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:var(--dsw-alias-brand-primary)}
 .dsr-count{font-size:9.5px;min-width:15px;height:15px;padding:0 4px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
+.dsr-side-tabs{position:relative;display:flex;align-items:flex-end;flex:none;border-bottom:1px solid var(--dsw-alias-border-l1);padding-right:12px;z-index:10}
+.dsr-side-tabs .dsr-tabs{flex:1;min-width:0;padding-right:0;border-bottom:0}
+.dsr-history-toggle{flex:none;font-size:11px;gap:4px;padding-left:8px;padding-right:6px;white-space:nowrap}
+.dsr-history-toggle[aria-expanded="true"]{color:var(--dsw-alias-label-primary)}
+.dsr-history-toggle svg{transition:transform .12s}
+.dsr-history-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
+.dsr-history-popover{position:absolute;top:calc(100% + 5px);left:12px;right:12px;padding:5px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-overlay);box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 13%,transparent);z-index:30}
+.dsr-history-list{max-height:min(300px,50vh);overflow:auto;overscroll-behavior:contain;display:grid;gap:2px}
+.dsr-history-row{display:flex;gap:4px;align-items:center;border-radius:6px}
+.dsr-history-row>button:first-child{flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;padding:9px 8px;font-size:11.5px;color:var(--dsw-alias-label-primary)}
+.dsr-history-row>button:last-child{flex:none;margin-right:3px}
+.dsr-history-row[aria-current="true"]{background:var(--dsw-alias-bg-layer-2)}
+.dsr-history-row[aria-current="true"]>button:first-child{font-weight:600}
+.dsr-model-picker{appearance:auto;flex:1 1 110px;min-width:50px;max-width:150px;height:24px;padding:0 3px;border:0;border-radius:5px;background:transparent;font-size:10px;color:var(--dsw-alias-label-secondary);cursor:pointer;text-overflow:ellipsis}
+.dsr-model-picker:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.dsr-model-picker:focus-visible,.dsr-history-toggle:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.dsr-model-picker:disabled{opacity:.6;cursor:default}
+.dsr-side-notice{flex:none;padding:7px 14px 0}
+.dsr-edit-question{width:100%;min-height:90px;resize:vertical;padding:8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit}
+.dsr-edit-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.dsr-edit-hint{font-size:11px;color:var(--dsw-alias-label-secondary);margin:6px 0}
 .dsr-mode-box{flex:none;padding:11px 14px 10px;border-bottom:1px solid var(--dsw-alias-border-l1);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 55%,transparent)}
 .dsr-mode-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .dsr-mode-label{font-size:10.5px;color:var(--dsw-alias-label-secondary);letter-spacing:.02em}
@@ -702,7 +735,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-composer-box textarea{display:block;width:100%;min-height:36px;max-height:170px;resize:none;border:0;outline:0;background:transparent;font-size:12.5px;line-height:1.6;padding:1px 2px;color:var(--dsw-alias-label-primary)}
 .dsr-composer-box textarea::placeholder{color:var(--dsw-alias-label-secondary);opacity:.8}
 .dsr-composer-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px}
-.dsr-composer-hint{font-size:9.5px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsr-composer-hint{flex:0 1 auto;min-width:0;font-size:9.5px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsr-send{appearance:none;width:27px;height:27px;border-radius:7px;border:0;display:inline-flex;align-items:center;justify-content:center;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-bg-base));cursor:pointer;flex:none}
 .dsr-send:hover{filter:brightness(.93)}
 .dsr-send:disabled{opacity:.35;cursor:not-allowed}
@@ -1599,7 +1632,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       return body
     }
 
-    async function apiPost(path, payload) {
+    async function apiPost(path, payload, options = {}) {
       const response = await fetch(`${APP_BASE}${path}`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -1610,12 +1643,53 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           accept: 'application/json, application/x-ndjson',
         },
         body: JSON.stringify(payload),
+        signal: options.signal,
       })
       if (!response.ok) {
         const body = await response.json().catch(() => undefined)
         throw new Error(body?.error?.message ?? `HTTP ${response.status}`)
       }
       return response
+    }
+
+    function settledMessages(messages) {
+      return (Array.isArray(messages) ? messages : []).filter(message => message && ['user', 'assistant'].includes(message.role))
+        .map(message => message.pending ? { ...message, pending: false, aborted: true } : message)
+    }
+    function conversationTitle(messages, fallback) {
+      return messages.find(message => message.role === 'user')?.text?.replace(/\s+/g, ' ').trim().slice(0, 60) || fallback
+    }
+    function newConversation(t, values = {}) {
+      return { id: uid(), title: t('unnamedConversation'), messages: [], draft: '', quote: null,
+        modelSelection: null, mode: 'learn', createdAt: Date.now(), updatedAt: Date.now(), ...values }
+    }
+    function forkConversation(source, messageId, t) {
+      const index = source.messages.findIndex(message => message.id === messageId)
+      if (index < 0) return null
+      return newConversation(t, { ...source, id: uid(), title: source.title + ' · ' + t('branchConversation'),
+        messages: settledMessages(source.messages.slice(0, index + 1)).map(message => ({ ...message, id: uid() })),
+        draft: '', quote: null, parentId: source.id, forkMessageId: messageId, createdAt: Date.now(), updatedAt: Date.now() })
+    }
+    function conversationBackup(library) {
+      return { conversations: library.conversations, activeId: library.activeId,
+        pendingIds: [...(library.pendingIds || [])], deletedIds: [...(library.deletedIds || [])] }
+    }
+    function restoreConversationBackup(saved, cached) {
+      const items = new Map((saved.conversations || []).map(item => [item.id, { ...item, messages: settledMessages(item.messages) }]))
+      const recovered = []
+      for (const item of cached?.conversations || []) {
+        const previous = items.get(item.id)
+        if ((cached.pendingIds || []).includes(item.id) && (!previous || Number(item.updatedAt) >= Number(previous.updatedAt))) {
+          const next = { ...item, messages: settledMessages(item.messages) }
+          items.set(item.id, next); recovered.push(next)
+        }
+      }
+      for (const id of cached?.deletedIds || []) items.delete(id)
+      return { conversations: [...items.values()], recovered, deletedIds: cached?.deletedIds || [] }
+    }
+    function quoteFromMessage(message) {
+      return message.quote || message.crop ? { text: message.quote || '', blockId: message.blockId,
+        page: message.page, pdfPage: message.pdfPage, crop: message.crop } : null
     }
 
     function contextQuery(docId, contextId) {
@@ -1959,6 +2033,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             h('path', { key: 'a', d: 'M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3' }),
             h('path', { key: 'b', d: 'M9 9h6v6H9z' }),
           ]
+        case 'trash':
+          return [h('path', { key: 'a', d: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7' })]
         case 'code':
           return [h('path', { key: 'a', d: 'm8 8-4 4 4 4M16 8l4 4-4 4M13.5 4.5l-3 15' })]
         default:
@@ -2845,12 +2921,21 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     }
 
-    const MessageBubble = React.memo(function MessageBubble({ message, t, docId, onAhead, onReadPage, onToast }) {
+    const MessageBubble = React.memo(function MessageBubble({ message, t, docId, onAhead, onReadPage, onToast, onEdit, onFork, busy }) {
+      const [editing, setEditing] = useState(false)
+      const [editedText, setEditedText] = useState('')
+      const submitEdit = branch => {
+        if (!editedText.trim() || busy) return
+        onEdit(message.id, editedText.trim(), branch)
+        setEditing(false)
+      }
       const isUser = message.role === 'user'
       const modeLabel = message.mode === 'reread' ? t('modeReread') : t('modeLearn')
       return h('div', { className: cls('dsr-msg', isUser ? 'dsr-msg-user' : 'dsr-msg-assistant') },
         h('div', { className: 'dsr-msg-meta' },
           h('span', null, isUser ? t('you') : t('appName')),
+          isUser ? h('button', { type: 'button', className: 'dsr-mini-btn', disabled: busy, onClick: () => { setEditedText(message.text); setEditing(true) } }, t('editQuestion')) : null,
+          h('button', { type: 'button', className: 'dsr-mini-btn', disabled: busy || message.pending, onClick: () => onFork(message.id) }, t('forkHere')),
           !isUser && message.mode ? h('span', { className: 'dsr-msg-mode' }, modeLabel) : null
         ),
         h('div', { className: 'dsr-msg-bubble' },
@@ -2859,7 +2944,14 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             message.quote
           ) : null,
           isUser
-            ? h('div', { style: { whiteSpace: 'pre-wrap' } }, message.text)
+            ? editing ? h('div', null,
+              h('textarea', { className: 'dsr-edit-question', value: editedText, autoFocus: true, 'aria-label': t('editQuestion'), onChange: event => setEditedText(event.target.value), onKeyDown: event => { if (event.key === 'Escape') { event.stopPropagation(); setEditing(false) } } }),
+              h('p', { className: 'dsr-edit-hint' }, t('editHint')),
+              h('div', { className: 'dsr-edit-actions' },
+                h('button', { type: 'button', className: 'dsr-mini-btn', disabled: busy || !editedText.trim(), onClick: () => submitEdit(false) }, t('editResend')),
+                h('button', { type: 'button', className: 'dsr-mini-btn', disabled: busy || !editedText.trim(), onClick: () => submitEdit(true) }, t('editFork')),
+                h('button', { type: 'button', className: 'dsr-mini-btn', onClick: () => setEditing(false) }, t('cancel'))))
+              : h('div', { style: { whiteSpace: 'pre-wrap' } }, message.text)
             : h('div', null,
               h(ReasoningBlock, {
                 text: message.reasoning,
@@ -2895,7 +2987,26 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     })
 
-    function ChatBody({ t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote, onClear, empty, onAhead, onReadPage, scrollRef, docId, onToast, draft, setDraft }) {
+    function ModelPicker({ t, models, modelSelection, onModelChange, onRefreshModels, busy }) {
+      const selected = models.find(item => item.provider === modelSelection?.provider && item.model === modelSelection?.model)
+      return h('select', {
+        className: 'dsr-model-picker', disabled: busy,
+        'aria-label': t('modelLabel'), title: modelSelection ? formatModel(modelSelection) : t('followDefault'),
+        value: modelSelection ? JSON.stringify(modelSelection) : '',
+        onFocus: onRefreshModels,
+        onChange: event => onModelChange(event.target.value ? JSON.parse(event.target.value) : null),
+      },
+        h('option', { value: '' }, t('followDefault')),
+        modelSelection && !selected ? h('option', { value: JSON.stringify(modelSelection), disabled: true }, formatModel(modelSelection) + ' ⚠') : null,
+        [...new Set(models.map(item => item.provider))].map(provider => h('optgroup', {
+          key: provider, label: models.find(item => item.provider === provider)?.providerName || provider,
+        }, models.filter(item => item.provider === provider).map(item => h('option', {
+          key: item.model, value: JSON.stringify({ provider: item.provider, model: item.model }),
+          title: item.providerName + ' / ' + (item.name || item.model),
+        }, item.name || item.model)))))
+    }
+
+    function ChatBody({ t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote, onClear, empty, onAhead, onReadPage, scrollRef, docId, onToast, draft, setDraft, onEdit, onFork, modelPicker }) {
       const inputRef = useRef(null)
       const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined
       const lastTextLength = lastMessage?.text?.length ?? 0
@@ -2958,7 +3069,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               h('div', { className: 'dsr-mode-hint' }, mode === 'reread' ? t('emptyChatReread') : t('emptyChatLearning'))
             )
             : h('div', { className: 'dsr-chat-list' },
-              messages.map(message => h(MessageBubble, { key: message.id, message, t, docId, onAhead, onReadPage, onToast }))
+              messages.map(message => h(MessageBubble, { key: message.id, message, t, docId, onAhead, onReadPage, onToast, onEdit, onFork, busy }))
             )
         ),
         h('div', { className: 'dsr-composer', tabIndex: -1 },
@@ -2979,7 +3090,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               disabled: busy,
             }),
             h('div', { className: 'dsr-composer-row' },
-              h('span', { className: 'dsr-composer-hint' }, t('composerHint')),
+              h('span', { className: 'dsr-composer-hint', title: t('composerHint') }, t('composerHint')),
+              modelPicker,
               busy
                 ? h('button', { type: 'button', className: 'dsr-send', onClick: onStop, title: t('stop'), 'aria-label': t('stop') }, h(Icon, { name: 'stop', size: 13 }))
                 : h('button', { type: 'button', className: 'dsr-send', onClick: submit, disabled: draft.trim() === '', title: t('send'), 'aria-label': t('send') }, h(Icon, { name: 'send', size: 13 }))
@@ -3032,7 +3144,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     })
 
-    function TranslationBody({ t, targetLanguage, setTargetLanguage, translations, onClear, onCopy, onRetranslate, scrollRef, docId }) {
+    function TranslationBody({ t, targetLanguage, setTargetLanguage, translations, onClear, onCopy, onRetranslate, scrollRef, docId, modelPicker }) {
       return h(React.Fragment, null,
         h('div', { className: 'dsr-translate-head' },
           h('label', { htmlFor: 'dsr-target-lang' }, t('targetLanguage')),
@@ -3041,7 +3153,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             className: 'dsr-select',
             value: targetLanguage,
             onChange: event => setTargetLanguage(event.target.value),
-          }, TARGET_LANGUAGES.map(([value, zhLabel, enLabel]) => h('option', { key: value, value }, t('source') === 'Source' ? enLabel : zhLabel)))
+          }, TARGET_LANGUAGES.map(([value, zhLabel, enLabel]) => h('option', { key: value, value }, t('source') === 'Source' ? enLabel : zhLabel))),
+          modelPicker
         ),
         h('div', { className: 'dsr-side-scroll', ref: scrollRef },
           translations.length === 0
@@ -3079,7 +3192,33 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       doc, t, mode, setMode, panelTab, setPanelTab, messages, busy, onSend, onStop,
       quote, onClearQuote, onClearChat, onAhead, onReadPage, translations, targetLanguage, setTargetLanguage,
       onClearTranslations, onTranslateAgain, onToast, onClose, modelAvailable, positionLabel, chatOpen, draft, setDraft,
+      conversations, activeConversationId, onSwitchConversation, onDeleteConversation, models, modelSelection, onModelChange, onRefreshModels, modelError, saveError, onRetrySave, onEdit, onFork,
     }) {
+      const [historyOpen, setHistoryOpen] = useState(false)
+      const historyAreaRef = useRef(null)
+      const historyTriggerRef = useRef(null)
+      useEffect(() => { setHistoryOpen(false) }, [doc?.id, panelTab])
+      useEffect(() => {
+        if (!historyOpen) return undefined
+        const outside = event => { if (!historyAreaRef.current?.contains(event.target)) setHistoryOpen(false) }
+        const escape = event => {
+          if (event.key !== 'Escape') return
+          event.preventDefault()
+          event.stopPropagation()
+          setHistoryOpen(false)
+          historyTriggerRef.current?.focus({ preventScroll: true })
+        }
+        document.addEventListener('pointerdown', outside, true)
+        window.addEventListener('keydown', escape, true)
+        const target = historyAreaRef.current?.querySelector('[aria-current="true"] button')
+          || historyAreaRef.current?.querySelector('.dsr-history-row button')
+        target?.focus({ preventScroll: true })
+        return () => {
+          document.removeEventListener('pointerdown', outside, true)
+          window.removeEventListener('keydown', escape, true)
+        }
+      }, [historyOpen])
+      const modelPicker = h(ModelPicker, { t, models, modelSelection, onModelChange, onRefreshModels, busy })
       const chatScroll = useRef(null)
       const transScroll = useRef(null)
       return h('aside', { className: 'dsr-side', 'aria-label': t('chatTitle') },
@@ -3088,21 +3227,32 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             panelTab === 'chat' ? t('chatTitle') : t('translateTitle'),
             h('small', null, panelTab === 'chat' ? positionLabel : t('translateSub'))
           ),
-          panelTab === 'chat' && messages.length > 0
+          panelTab === 'chat'
             ? h('button', { type: 'button', className: 'dsr-icon-btn', onClick: onClearChat, title: t('newChat') + ' (X)', 'aria-label': t('newChat') }, h(Icon, { name: 'refresh', size: 14 }))
             : null,
           h('button', { type: 'button', className: 'dsr-icon-btn', onClick: onClose, title: t('closePanel'), 'aria-label': t('closePanel') }, h(Icon, { name: 'panel', size: 15 }))
         ),
-        h('div', { className: 'dsr-tabs', role: 'tablist' },
-          h('button', { type: 'button', role: 'tab', 'aria-selected': panelTab === 'chat', className: cls('dsr-tab', panelTab === 'chat' && 'on'), onClick: () => setPanelTab('chat') },
-            h(Icon, { name: 'chat', size: 13 }), t('chat'),
-            messages.length > 0 ? h('span', { className: 'dsr-count' }, messages.length > 99 ? '99+' : messages.length) : null
-          ),
-          h('button', { type: 'button', role: 'tab', 'aria-selected': panelTab === 'translate', className: cls('dsr-tab', panelTab === 'translate' && 'on'), onClick: () => setPanelTab('translate') },
-            h(Icon, { name: 'translate', size: 13 }), t('translation'),
-            translations.length > 0 ? h('span', { className: 'dsr-count' }, translations.length) : null
-          )
-        ),
+        h('div', { className: 'dsr-side-tabs', ref: historyAreaRef },
+          h('div', { className: 'dsr-tabs', role: 'tablist' },
+            h('button', { type: 'button', role: 'tab', 'aria-selected': panelTab === 'chat', className: cls('dsr-tab', panelTab === 'chat' && 'on'), onClick: () => { setHistoryOpen(false); setPanelTab('chat') } },
+              h(Icon, { name: 'chat', size: 13 }), t('chat'),
+              messages.length > 0 ? h('span', { className: 'dsr-count' }, messages.length > 99 ? '99+' : messages.length) : null),
+            h('button', { type: 'button', role: 'tab', 'aria-selected': panelTab === 'translate', className: cls('dsr-tab', panelTab === 'translate' && 'on'), onClick: () => { setHistoryOpen(false); setPanelTab('translate') } },
+              h(Icon, { name: 'translate', size: 13 }), t('translation'),
+              translations.length > 0 ? h('span', { className: 'dsr-count' }, translations.length) : null)),
+          h('button', {
+            ref: historyTriggerRef, type: 'button', className: 'dsr-tab dsr-history-toggle',
+            'aria-expanded': historyOpen, 'aria-haspopup': 'dialog', 'aria-controls': 'dsr-history-popover',
+            onClick: () => setHistoryOpen(value => !value),
+          }, t('conversations'), h('span', { className: 'dsr-count' }, conversations.length), h(Icon, { name: 'down', size: 11 })),
+          historyOpen ? h('div', { id: 'dsr-history-popover', className: 'dsr-history-popover', role: 'dialog', 'aria-label': t('conversations') },
+            h('div', { className: 'dsr-history-list' }, conversations.map(item => h('div', { key: item.id, className: 'dsr-history-row', 'aria-current': item.id === activeConversationId },
+              h('button', { type: 'button', className: 'dsr-mini-btn', title: item.title, onClick: () => { onSwitchConversation(item.id); setHistoryOpen(false); historyTriggerRef.current?.focus({ preventScroll: true }) } }, item.title),
+              h('button', { type: 'button', className: 'dsr-mini-btn', 'aria-label': t('deleteConversation') + ': ' + item.title, title: t('deleteConversation'), onClick: () => onDeleteConversation(item.id) }, h(Icon, { name: 'trash', size: 12 })))))) : null),
+        modelError ? h('div', { className: 'dsr-side-notice' }, h('div', { className: 'dsr-inline-error', role: 'status' }, modelError,
+          h('button', { type: 'button', className: 'dsr-mini-btn', onClick: onRefreshModels }, t('refreshModels')))) : null,
+        saveError ? h('div', { className: 'dsr-side-notice' }, h('div', { className: 'dsr-inline-error', role: 'status' }, saveError,
+          h('button', { type: 'button', className: 'dsr-mini-btn', onClick: onRetrySave }, t('retrySave')))) : null,
         panelTab === 'chat'
           ? h(React.Fragment, null,
             !modelAvailable
@@ -3111,7 +3261,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             h(ChatBody, {
               t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote,
               onClear: onClearChat, onAhead, onReadPage, scrollRef: chatScroll,
-              docId: doc?.id ?? '', onToast, draft, setDraft,
+              docId: doc?.id ?? '', onToast, draft, setDraft, onEdit, onFork, modelPicker,
             })
           )
           : h(TranslationBody, {
@@ -3120,6 +3270,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             onCopy: onToast,
             onRetranslate: onTranslateAgain,
             scrollRef: transScroll,
+            modelPicker,
             docId: doc?.id ?? '',
           })
       )
@@ -4735,6 +4886,17 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const readerControlsRef = useRef(null)
       const heldActivationRef = useRef(null)
       const [messages, setMessages] = useState([])
+      const [conversations, setConversations] = useState([])
+      const [activeConversationId, setActiveConversationId] = useState(null)
+      const [modelSelection, setModelSelection] = useState(null)
+      const [models, setModels] = useState([])
+      const [modelError, setModelError] = useState('')
+      const [saveError, setSaveError] = useState('')
+      const libraryRef = useRef(null)
+      const saveQueueRef = useRef(Promise.resolve())
+      const dirtyConversationsRef = useRef(new Map())
+      const liveChatRef = useRef(null)
+      const modelLoadRef = useRef(null)
       const [busy, setBusy] = useState(false)
       const [pendingQuote, setPendingQuote] = useState(null)
       const [translations, setTranslations] = useState([])
@@ -4762,11 +4924,103 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const askAbortRef = useRef(null)
       const translationAbortRef = useRef(null)
       const restoredRef = useRef(false)
-      const chatDocRef = useRef(null)
+      const chatSaveAtRef = useRef(0)
       const translationDocRef = useRef(null)
       const openingRef = useRef(null)
       const docRef = useRef(null)
       const tocRef = useRef(null)
+      liveChatRef.current = { messages, draft: questionDraft, quote: pendingQuote, modelSelection, mode, activeId: activeConversationId }
+
+      const refreshModels = useCallback(() => {
+        if (modelLoadRef.current) return modelLoadRef.current
+        const request = apiGet('/models').then(body => {
+          setModels(Array.isArray(body.models) ? body.models : [])
+          setModelError(body.errors?.length ? body.errors.map(error => typeof error === 'string' ? error : error.message || error.error || '').filter(Boolean).join('; ') : '')
+        }).catch(error => setModelError(t('modelLoadFailed') + ': ' + error.message))
+          .finally(() => { modelLoadRef.current = null })
+        modelLoadRef.current = request
+        return request
+      }, [t])
+      useEffect(() => { void refreshModels() }, [refreshModels])
+
+      const queueConversation = useCallback((docId, path, payload) => {
+        const key = path + '\0' + (payload.conversation?.id || payload.id)
+        dirtyConversationsRef.current.set(key, { docId, path, payload })
+        const library = libraryRef.current?.path === path ? libraryRef.current : null
+        if (library) {
+          if (payload.action === 'remove') { library.deletedIds.add(payload.id); library.pendingIds.delete(payload.id) }
+          else library.pendingIds.add(payload.conversation.id)
+          writeStore('conversations:' + path, conversationBackup(library))
+        }
+        const request = saveQueueRef.current.catch(() => {}).then(async () => {
+          if (dirtyConversationsRef.current.get(key)?.payload !== payload) return
+          const response = await apiPost('/conversations', { docId, ...payload }, { signal: AbortSignal.timeout(15000) })
+          const body = await response.json()
+          if (body.ok !== true) throw new Error(body.error?.message || t('conversationSaveFailed'))
+          if (dirtyConversationsRef.current.get(key)?.payload === payload) {
+            dirtyConversationsRef.current.delete(key)
+            if (library) {
+              if (payload.action === 'remove') library.deletedIds.delete(payload.id)
+              else if (library.conversations.find(item => item.id === payload.conversation.id) === payload.conversation) library.pendingIds.delete(payload.conversation.id)
+              writeStore('conversations:' + path, conversationBackup(library))
+            }
+          }
+          if (!dirtyConversationsRef.current.size) setSaveError('')
+        })
+        saveQueueRef.current = request.catch(error => { setSaveError(t('conversationSaveFailed') + ': ' + error.message) })
+        return request
+      }, [t])
+      const retrySave = useCallback(() => {
+        for (const item of [...dirtyConversationsRef.current.values()]) {
+          const library = libraryRef.current?.path === item.path ? libraryRef.current : null
+          const payload = { ...item.payload, ...(library ? { activeId: library.activeId } : {}) }
+          // Saving a new active conversation must precede references to its id.
+          if (library && (payload.action === 'remove' || payload.conversation.id !== library.activeId)) delete payload.activeId
+          void queueConversation(item.docId, item.path, payload).catch(() => {})
+        }
+        const library = libraryRef.current
+        const active = library?.conversations.find(item => item.id === library.activeId)
+        if (active) void queueConversation(library.docId, library.path, { action: 'save', conversation: active, activeId: active.id }).catch(() => {})
+      }, [queueConversation])
+      const cacheLibrary = useCallback(library => {
+        writeStore('conversations:' + library.path, conversationBackup(library))
+        setConversations([...library.conversations])
+      }, [])
+      const commitConversation = useCallback((conversation, library = libraryRef.current) => {
+        if (!library) return
+        library.conversations = [conversation, ...library.conversations.filter(item => item.id !== conversation.id)]
+        library.pendingIds.add(conversation.id)
+        cacheLibrary(library)
+        void queueConversation(library.docId, library.path, { action: 'save', conversation, ...(conversation.id === library.activeId ? { activeId: library.activeId } : {}) }).then(() => {
+          // Only remove the pre-multiconversation backup after a durable save.
+          removeStore('chat:' + library.path)
+        }).catch(() => {})
+      }, [cacheLibrary, queueConversation])
+      const saveCurrentConversation = useCallback((settle = false) => {
+        const library = libraryRef.current
+        const live = liveChatRef.current
+        if (!library || live?.activeId !== library.activeId) return null
+        const previous = library.conversations.find(item => item.id === library.activeId)
+        if (!previous) return null
+        const next = { ...previous, ...live, id: previous.id,
+          messages: settle ? settledMessages(live.messages) : live.messages, updatedAt: Date.now(),
+          title: previous.parentId ? previous.title : conversationTitle(live.messages, t('unnamedConversation')) }
+        delete next.activeId
+        commitConversation(next, library)
+        return next
+      }, [commitConversation, t])
+      const activateConversation = useCallback((conversation, library = libraryRef.current) => {
+        if (!library) return
+        library.activeId = conversation.id
+        setActiveConversationId(conversation.id)
+        setMessages(settledMessages(conversation.messages))
+        setQuestionDraft(conversation.draft || '')
+        setPendingQuote(conversation.quote || null)
+        setModelSelection(conversation.modelSelection || null)
+        setMode(conversation.mode === 'reread' ? 'reread' : 'learn')
+        setBusy(false)
+        cacheLibrary(library)
+      }, [cacheLibrary])
 
       useEffect(() => {
         const release = event => {
@@ -4787,7 +5041,6 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       // A new document starts with every chapter collapsed.
       useEffect(() => {
         setExpandedToc(new Set())
-        setQuestionDraft('')
         setSearchHit(null)
         setSearchPositionStatus('')
         setSearchOpen(false)
@@ -4833,11 +5086,14 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const openPath = useCallback(async (path, options = {}) => {
         if (openingRef.current !== null) return
         readerControlsRef.current?.('flush-position')
+        saveCurrentConversation(true)
         openingRef.current = path
         setOpeningPath(path)
         setOpenError('')
         try {
           askAbortRef.current?.abort()
+          askAbortRef.current = null
+          setBusy(false)
           translationAbortRef.current?.abort()
           const body = await (async () => {
             const response = await apiPost('/open', { path })
@@ -4846,6 +5102,28 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           if (body?.ok !== true || body.doc === undefined) throw new Error(body?.error?.message ?? t('parseError'))
           const nextDoc = body.doc
           nextDoc.readerPosition = await fetchReadingPosition(nextDoc)
+          await saveQueueRef.current
+          let saved
+          try { saved = await apiGet('/conversations?id=' + encodeURIComponent(nextDoc.id)) }
+          catch (error) { throw new Error(t('conversationLoadFailed') + ' ' + error.message) }
+          const cached = readStore('conversations:' + nextDoc.path, null)
+          const legacy = readStore('chat:' + nextDoc.path, [])
+          const restored = restoreConversationBackup(saved, cached)
+          let items = restored.conversations
+          const migrate = items.length === 0
+          if (items.length === 0 && Array.isArray(legacy) && legacy.length) items = [newConversation(t, {
+            messages: settledMessages(legacy), title: conversationTitle(legacy, t('unnamedConversation')), mode })]
+          if (items.length === 0) items = [newConversation(t, { mode, modelSelection })]
+          const activeId = cached?.pendingIds?.length ? cached.activeId : saved.activeId || cached?.activeId
+          const active = items.find(item => item.id === activeId) || items[0]
+          const library = { path: nextDoc.path, docId: nextDoc.id, conversations: items, activeId: active.id, pendingIds: new Set(), deletedIds: new Set(restored.deletedIds) }
+          libraryRef.current = library
+          docRef.current = nextDoc
+          activateConversation(active, library)
+          // Save active first so other migrated records can reference its id.
+          commitConversation(active, library)
+          for (const item of items) if (item.id !== active.id && (migrate || restored.recovered.some(recovered => recovered.id === item.id))) commitConversation(item, library)
+          for (const id of restored.deletedIds) void queueConversation(library.docId, library.path, { action: 'remove', id, activeId: active.id }).catch(() => {})
           setDoc(nextDoc)
           setActivePage(0)
           setPdfPageCount(0)
@@ -4853,19 +5131,11 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           setPositionBlock(nextDoc.blocks[0]?.id ?? 0)
           setProgress(0)
           setSelection(null)
-          setPendingQuote(null)
           setBrowserOpen(false)
           setTocOpen(false)
           writeStore('current', nextDoc.path)
           rememberRecent(nextDoc)
-          chatDocRef.current = nextDoc.path
           translationDocRef.current = nextDoc.path
-          const storedMessages = readStore(`chat:${nextDoc.path}`, [])
-          setMessages(Array.isArray(storedMessages)
-            ? storedMessages
-              .filter(message => message !== null && typeof message === 'object' && typeof message.role === 'string')
-              .map(message => message.pending === true ? { ...message, pending: false, aborted: true } : message)
-            : [])
           const storedTranslations = readStore(`translations:${nextDoc.path}`, [])
           setTranslations(Array.isArray(storedTranslations)
             ? storedTranslations
@@ -4887,7 +5157,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           openingRef.current = null
           setOpeningPath(null)
         }
-      }, [rememberRecent, showToast, t])
+      }, [rememberRecent, showToast, t, saveCurrentConversation, activateConversation, commitConversation, mode, modelSelection, queueConversation])
 
       useEffect(() => {
         if (doc === null || doc.extraction !== 'pending') return undefined
@@ -4946,14 +5216,29 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       }, [chatOpen])
 
       useEffect(() => {
-        if (doc === null || chatDocRef.current !== doc.path) return undefined
+        if (!doc || libraryRef.current?.path !== doc.path || libraryRef.current?.activeId !== activeConversationId) return undefined
+        // Keep a synchronous browser backup; Host writes coalesce streaming deltas.
+        const library = libraryRef.current
+        const previous = library.conversations.find(item => item.id === activeConversationId)
+        if (!previous) return undefined
+        const next = { ...previous, messages, draft: questionDraft, quote: pendingQuote, modelSelection, mode,
+          title: previous.parentId ? previous.title : conversationTitle(messages, t('unnamedConversation')), updatedAt: Date.now() }
+        library.conversations = library.conversations.map(item => item.id === next.id ? next : item)
+        library.pendingIds.add(next.id)
+        writeStore('conversations:' + library.path, conversationBackup(library))
         const timer = window.setTimeout(() => {
-          const trimmed = messages.slice(-40)
-          if (trimmed.length === 0) removeStore(`chat:${doc.path}`)
-          else writeStore(`chat:${doc.path}`, trimmed)
-        }, 220)
+          chatSaveAtRef.current = Date.now()
+          commitConversation(next, library)
+        }, Math.max(0, 1000 - (Date.now() - chatSaveAtRef.current)))
         return () => window.clearTimeout(timer)
-      }, [doc, messages])
+      }, [doc?.id, messages, questionDraft, pendingQuote, modelSelection, mode, activeConversationId, commitConversation, t])
+      useEffect(() => {
+        const flush = () => saveCurrentConversation(true)
+        window.addEventListener('pagehide', flush)
+        const hidden = () => { if (document.visibilityState === 'hidden') flush() }
+        document.addEventListener('visibilitychange', hidden)
+        return () => { flush(); window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', hidden) }
+      }, [saveCurrentConversation])
 
       useEffect(() => {
         if (doc === null || translationDocRef.current !== doc.path) return undefined
@@ -5074,7 +5359,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         if (doc === null || busy) return
         const clean = String(question).trim()
         if (clean === '') return
-        const history = messages
+        const baseMessages = options.history ?? messages
+        const history = baseMessages
           .filter(message => message.pending !== true && message.error === undefined && message.aborted !== true)
           .slice(-10)
           .map(message => ({
@@ -5091,9 +5377,9 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           role: 'user',
           text: clean,
           quote: quote?.text || (quote?.crop ? t('quoteRegion') : null),
-          page: quote?.pdfPage ?? activePage + 1,
+          page: quote?.pdfPage ?? options.currentPage ?? activePage + 1,
           pdfPage: quote?.pdfPage ?? null,
-          blockId: quote?.blockId ?? positionBlock,
+          blockId: quote?.blockId ?? options.blockId ?? positionBlock,
           crop: quote?.crop ?? null,
           time: Date.now(),
           mode,
@@ -5110,14 +5396,19 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           status: '',
           time: Date.now(),
         }
-        setMessages(previous => [...previous, userMessage, assistantMessage])
+        const requestConversationId = libraryRef.current?.activeId
+        const requestDocId = doc.id
+        const updateRequestMessages = update => {
+          if (libraryRef.current?.activeId === requestConversationId && libraryRef.current?.docId === requestDocId && !controller.signal.aborted && askAbortRef.current === controller) setMessages(update)
+        }
+        setMessages(() => [...baseMessages, userMessage, assistantMessage])
         setPendingQuote(null)
         setBusy(true)
         setPanelTab('chat')
         setChatOpenPersisted(true)
         const controller = new AbortController()
         askAbortRef.current = controller
-        const blockId = quote?.blockId ?? positionBlock
+        const blockId = quote?.blockId ?? options.blockId ?? positionBlock
         let streamError = null
         // DeepSeek emits one character per delta. Coalesce deltas into one
         // React update per frame rather than re-rendering the Markdown tree
@@ -5132,7 +5423,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           const thought = pendingReasoning
           pendingText = ''
           pendingReasoning = ''
-          setMessages(previous => previous.map(message => message.id === assistantId
+          updateRequestMessages(previous => previous.map(message => message.id === assistantId
             ? {
               ...message,
               text: message.text + chunk,
@@ -5175,18 +5466,19 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         try {
           await streamPost('/ask', {
             docId: doc.id,
+            modelSelection,
             question: clean,
             mode,
             blockId,
             selection: quote?.text ?? '',
             selectionCrop: quote?.crop ?? null,
             selectionPage: quote?.pdfPage ?? null,
-            currentPage: activePage + 1,
+            currentPage: options.currentPage ?? activePage + 1,
             history,
             overview: options.overview === true,
           }, controller.signal, frame => {
             if (frame.type === 'meta') {
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? {
                   ...message,
                   contextId: typeof frame.contextId === 'string' ? frame.contextId : '',
@@ -5204,59 +5496,59 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               scheduleFlush()
             } else if (frame.type === 'resetText') {
               stopFlush()
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, text: '', ahead: null }
                 : message))
             } else if (frame.type === 'status') {
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, status: frame.text }
                 : message))
             } else if (frame.type === 'reading' && frame.entry !== null && typeof frame.entry === 'object') {
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, reading: [...(Array.isArray(message.reading) ? message.reading : []), frame.entry].slice(-12) }
                 : message))
             } else if (frame.type === 'pages') {
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, pages: Array.isArray(frame.pages) ? frame.pages : [] }
                 : message))
             } else if (frame.type === 'ahead') {
               stopFlush()
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, ahead: { blockId: frame.blockId, page: frame.page, label: frame.label } }
                 : message))
             } else if (frame.type === 'done') {
               stopFlush()
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, pending: false, model: frame.model, provider: frame.provider }
                 : message))
             } else if (frame.type === 'error') {
               stopFlush()
               streamError = frame.message
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, pending: false, error: frame.message }
                 : message))
             } else if (frame.type === 'aborted') {
               stopFlush()
-              setMessages(previous => previous.map(message => message.id === assistantId
+              updateRequestMessages(previous => previous.map(message => message.id === assistantId
                 ? { ...message, pending: false, aborted: true }
                 : message))
             }
           })
           stopFlush()
           if (streamError === null) {
-            setMessages(previous => previous.map(message => message.id === assistantId && message.pending
+            updateRequestMessages(previous => previous.map(message => message.id === assistantId && message.pending
               ? { ...message, pending: false, text: message.text || t('noAnswer') }
               : message))
           }
         } catch (error) {
           stopFlush()
           if (controller.signal.aborted) {
-            setMessages(previous => previous.map(message => message.id === assistantId
+            updateRequestMessages(previous => previous.map(message => message.id === assistantId
               ? { ...message, pending: false, aborted: true }
               : message))
           } else {
             const message = error instanceof Error ? error.message : String(error)
-            setMessages(previous => previous.map(item => item.id === assistantId
+            updateRequestMessages(previous => previous.map(item => item.id === assistantId
               ? { ...item, pending: false, error: message }
               : item))
           }
@@ -5267,10 +5559,13 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             setBusy(false)
           }
         }
-      }, [busy, doc, messages, mode, positionBlock, activePage, setChatOpenPersisted, t])
+      }, [busy, doc, messages, mode, positionBlock, activePage, modelSelection, setChatOpenPersisted, t])
 
       const stopQuestion = useCallback(() => {
         askAbortRef.current?.abort()
+        askAbortRef.current = null
+        setMessages(previous => settledMessages(previous))
+        setBusy(false)
       }, [])
 
       const askFromSelection = useCallback(() => {
@@ -5385,6 +5680,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         }
         try {
           await streamPost('/translate', {
+            modelSelection,
             docId: doc.id,
             selection: selected.text,
             selectionCrop: selected.crop ?? null,
@@ -5437,7 +5733,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           if (translationAbortRef.current === controller) translationAbortRef.current = null
           setTranslationBusy(false)
         }
-      }, [doc, selection, setChatOpenPersisted, targetLanguage])
+      }, [doc, selection, setChatOpenPersisted, targetLanguage, modelSelection])
 
       const retranslate = useCallback(item => {
         if (doc === null) return
@@ -5445,19 +5741,87 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         void translateSelection(item.targetLanguage, { text: item.source, blockId: item.blockId, page: doc.blocks[item.blockId]?.page ?? 0 })
       }, [doc, translateSelection])
 
-      const clearChat = useCallback((skipConfirmation = false) => {
+      const clearChat = useCallback(() => {
         if (doc === null) return
-        if (!skipConfirmation && messages.length > 0 && !window.confirm(t('clearChatConfirm'))) return
+        saveCurrentConversation(true)
         askAbortRef.current?.abort()
         askAbortRef.current = null
-        setBusy(false)
-        setMessages([])
-        setQuestionDraft('')
-        setPendingQuote(null)
-        removeStore(`chat:${doc.path}`)
+        const conversation = newConversation(t, { mode, modelSelection })
+        const library = libraryRef.current
+        library.activeId = conversation.id
+        commitConversation(conversation, library)
+        activateConversation(conversation, library)
         askFromSelection()
-        showToast(t('clearChat'))
-      }, [doc, messages.length, askFromSelection, showToast, t])
+        showToast(t('conversationSaved'))
+      }, [doc, mode, modelSelection, saveCurrentConversation, commitConversation, activateConversation, askFromSelection, showToast, t])
+
+      const switchConversation = useCallback(id => {
+        const library = libraryRef.current
+        if (!library || id === library.activeId) return
+        saveCurrentConversation(true)
+        askAbortRef.current?.abort()
+        askAbortRef.current = null
+        const item = library.conversations.find(entry => entry.id === id)
+        if (!item) return
+        activateConversation(item, library)
+        commitConversation({ ...item, messages: settledMessages(item.messages) }, library)
+        setPanelTab('chat')
+        setQuestionFocus(value => value + 1)
+      }, [saveCurrentConversation, activateConversation, commitConversation])
+
+      const deleteConversation = useCallback(id => {
+        const library = libraryRef.current
+        if (!library || !window.confirm(t('deleteConversationConfirm'))) return
+        if (id === library.activeId) {
+          askAbortRef.current?.abort()
+          askAbortRef.current = null
+          library.conversations = library.conversations.filter(item => item.id !== id)
+          const next = library.conversations[0] || newConversation(t, { mode, modelSelection })
+          if (!library.conversations.length) library.conversations = [next]
+          activateConversation(next, library)
+          void queueConversation(library.docId, library.path, { action: 'remove', id, activeId: null }).catch(() => {})
+          commitConversation(next, library)
+        } else {
+          library.conversations = library.conversations.filter(item => item.id !== id)
+          cacheLibrary(library)
+          void queueConversation(library.docId, library.path, { action: 'remove', id, activeId: library.activeId }).catch(() => {})
+        }
+      }, [t, mode, modelSelection, activateConversation, commitConversation, cacheLibrary, queueConversation])
+
+      const forkChat = useCallback(messageId => {
+        if (busy) return
+        const source = saveCurrentConversation()
+        if (!source) return
+        const branch = forkConversation(source, messageId, t)
+        if (!branch) return
+        const library = libraryRef.current
+        library.activeId = branch.id
+        commitConversation(branch, library)
+        activateConversation(branch, library)
+        setQuestionFocus(value => value + 1)
+      }, [busy, saveCurrentConversation, commitConversation, activateConversation, t])
+
+      const editQuestion = useCallback((messageId, text, branch) => {
+        if (busy || !text.trim()) return
+        const source = saveCurrentConversation()
+        if (!source) return
+        const index = source.messages.findIndex(item => item.id === messageId && item.role === 'user')
+        if (index < 0) return
+        const original = source.messages[index]
+        const history = source.messages.slice(0, index)
+        if (branch) {
+          const fork = forkConversation(source, messageId, t)
+          // The edited question is appended by sendQuestion; exclude the old one.
+          fork.messages = history.map(item => ({ ...item, id: uid() }))
+          libraryRef.current.activeId = fork.id
+          commitConversation(fork)
+          activateConversation(fork)
+          void sendQuestion(text, quoteFromMessage(original), { history: fork.messages, blockId: original.blockId, currentPage: original.page })
+        } else {
+          setMessages(history)
+          void sendQuestion(text, quoteFromMessage(original), { history, blockId: original.blockId, currentPage: original.page })
+        }
+      }, [busy, saveCurrentConversation, commitConversation, activateConversation, sendQuestion, t])
 
       const clearTranslations = useCallback(() => {
         translationAbortRef.current?.abort()
@@ -5566,6 +5930,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           setChatOpen: setChatOpenPersisted,
           onOpen: () => { setOpenError(''); setBrowserOpen(true) },
           onBack: () => {
+            saveCurrentConversation(true)
+            askAbortRef.current?.abort()
+            askAbortRef.current = null
+            setBusy(false)
             try {
               ctx.get('layout')?.selectPanel(null)
             } catch (error) {
@@ -5643,7 +6011,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               onClearTranslations: clearTranslations, onTranslateAgain: retranslate,
               onToast: showToast,
               onClose: () => setChatOpenPersisted(false),
-              modelAvailable: boot?.modelAvailable !== false,
+              modelAvailable: modelSelection ? models.some(item => item.provider === modelSelection.provider && item.model === modelSelection.model) : boot?.modelAvailable !== false,
+               conversations, activeConversationId, onSwitchConversation: switchConversation, onDeleteConversation: deleteConversation,
+               models, modelSelection, onModelChange: setModelSelection, onRefreshModels: refreshModels, modelError,
+               saveError, onRetrySave: retrySave, onEdit: editQuestion, onFork: forkChat,
               positionLabel: positionLabel || t('currentPosition'),
             })
             : null,

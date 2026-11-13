@@ -1,6 +1,6 @@
 - insert:
     - id: study-reader
-      name: '@local/dsh-study-reader'
+      name: 'study-reader'
       config:
         defaultTargetLanguage: zh-CN
         maxDocumentBytes: 0

@@ -21,6 +21,13 @@ const manifest = JSON.parse(await read('package.json'))
 const lock = JSON.parse(await read('package-lock.json'))
 
 expect(/^\d+\.\d+\.\d+$/.test(manifest.version ?? ''), 'package.json version must be semver')
+expect(manifest.name === 'study-reader', 'public package name must be study-reader')
+expect(manifest.private !== true, 'public package must not be private')
+expect(lock.name === manifest.name && lock.packages?.['']?.name === manifest.name, 'lockfile package names differ')
+const patch = await read('cordis.patch.yml')
+expect(patch.includes(`name: '${manifest.name}'`), 'bundle patch must resolve the published package')
+expect((await read('client.js')).includes(`id: '${manifest.name}'`), 'Client module id must match the published package')
+expect(manifest.publishConfig?.registry === 'https://registry.npmjs.org/', 'publish registry must be npm official registry')
 expect(lock.version === manifest.version, `package-lock version ${lock.version} != package.json ${manifest.version}`)
 expect(lock.packages?.['']?.version === manifest.version, 'package-lock root entry version differs')
 
