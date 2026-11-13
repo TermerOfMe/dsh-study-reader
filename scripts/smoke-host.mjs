@@ -166,7 +166,8 @@ const expect = (condition, message) => {
 }
 
 const annotationDirectory = await mkdtemp(join(tmpdir(), 'dsh-study-http-'))
-const host = installStudyHost(ctx, { maxDocumentBytes: 0, visionMaxPages: 2, annotationDirectory })
+const hostConfig = { maxDocumentBytes: 0, visionMaxPages: 2, annotationDirectory, readingPositionDirectory: join(annotationDirectory, 'positions') }
+let host = installStudyHost(ctx, hostConfig)
 const server = createServer((req, res) => {
   if (registered === undefined) {
     res.writeHead(500)
@@ -211,6 +212,24 @@ try {
   expect(opened.status === 200, `open failed: ${opened.text}`)
   const doc = JSON.parse(opened.text).doc
   expect(typeof doc.id === 'string' && doc.id !== '', 'open should return a document id')
+
+  const missingPosition = await getJson('/reading-position?id=' + doc.id)
+  expect(missingPosition.status === 200 && missingPosition.body.position === null, 'new document position is null before extraction')
+  const savedPosition = await post('/reading-position', { docId: doc.id, position: { pageNumber: 2, x: .25, y: .7 }, writerId: 'smoke', revision: 2 })
+  expect(savedPosition.status === 200 && JSON.parse(savedPosition.text).position.pageNumber === 2, 'position saves before text extraction')
+  const stalePosition = await post('/reading-position', { docId: doc.id, position: { pageNumber: 1, x: 0, y: 0 }, writerId: 'smoke', revision: 1 })
+  expect(stalePosition.status === 200 && JSON.parse(stalePosition.text).position.pageNumber === 2, 'stale lifecycle request cannot overwrite newer position')
+  for (const position of [{ pageNumber: 3, x: 0, y: 0 }, { pageNumber: 1, x: -1, y: 0 }, { pageNumber: 1, x: 0, y: 2 }, { pageNumber: 1.5, x: 0, y: 0 }]) {
+    const invalid = await post('/reading-position', { docId: doc.id, position })
+    expect(invalid.status === 400, 'invalid or out-of-document position rejected')
+  }
+  expect((await getJson('/reading-position?id=unknown')).status === 404, 'reading position requires a loaded document')
+  host.dispose()
+  host = installStudyHost(ctx, hostConfig)
+  const reopened = await post('/open', { path: 'sample.pdf' })
+  expect(reopened.status === 200, 'document reopens after Host restart')
+  const restored = await getJson('/reading-position?id=' + JSON.parse(reopened.text).doc.id)
+  expect(restored.status === 200 && restored.body.position.pageNumber === 2 && restored.body.position.y === .7, 'position survives Host instance restart')
 
   const extracted = await post('/extract', { docId: doc.id })
   expect(extracted.status === 200, `extract failed: ${extracted.text}`)
@@ -333,6 +352,9 @@ try {
   expect(officeOpened.status === 200, 'legacy Office fixture opens through conversion')
   if (officeOpened.status === 200) {
     const officeDoc = JSON.parse(officeOpened.text).doc
+    host.app.entryDoc(officeDoc.id).doc.pages = [] // Logical extraction is not the physical preview count.
+    const officePosition = await post('/reading-position', { docId: officeDoc.id, position: { pageNumber: 2, x: .1, y: .4 } })
+    expect(officePosition.status === 200 && JSON.parse(officePosition.text).position.pageNumber === 2, 'Office position uses converted physical page count')
     const image = await fetch(base+'/page?id='+officeDoc.id+'&n=1&w=400')
     expect(image.status===200 && image.headers.get('content-type')==='image/jpeg', 'Office preview image uses converted PDF')
     await image.arrayBuffer()

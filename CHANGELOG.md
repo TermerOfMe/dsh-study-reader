@@ -7,10 +7,19 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Planned
-- Persisted reading position per document.
 - Print / export of the original document.
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
+
+## [1.16.5] - 2026-11-13
+
+### Fixed
+- 补齐“继续上次阅读”：按规范化文档路径保存页码和页内横纵位置；打开同一文件时等待页面准备完成再恢复，单页和连续页共用，避免初始第一页覆盖原有记录。
+- 阅读位置另存于 Host profile 数据目录，并以浏览器记录作为备用；DSH 重启后网页端口变化不再导致已保存的文档位置失效。
+- 文档切换、关闭及页面隐藏前刷新位置保存；后台写入保留顺序，旧请求不能倒写同一窗口的较新记录。无效坐标与损坏记录会明确处理。
+
+### Verification
+- 1.16.4 已使用运行中的 DSH、原测试 PDF 和真实模型复测：第 76、79 页图片成功注入，第二轮输入估算 24,495 tokens，保留学习模式当前页限制；真实模型公式可由当前 Host 提供的 KaTeX 转换。详见 `ACCEPTANCE.md`，浏览器目视验收仍待完成。
 
 ## [1.16.4] - 2026-11-12
 

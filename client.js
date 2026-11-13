@@ -58,6 +58,7 @@ globalThis.__ModuleLoader__.load({
         home: '主目录',
         workspace: '工作目录',
         recent: '最近打开',
+        readingPositionFallback: '阅读位置暂用浏览器备份：本机档案存储不可用，重启后可能无法恢复。',
         noRecent: '还没有打开过文档',
         loading: '正在加载…',
         loadingDoc: '正在解析文档…',
@@ -297,6 +298,7 @@ globalThis.__ModuleLoader__.load({
         home: 'Home',
         workspace: 'Workspace',
         recent: 'Recent',
+        readingPositionFallback: 'Reading position uses a browser backup: local profile storage is unavailable, so it may not survive a restart.',
         noRecent: 'No documents opened yet',
         loading: 'Loading…',
         loadingDoc: 'Reading document…',
@@ -1373,6 +1375,179 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
     function removeStore(key) {
       try { localStorage.removeItem(STORE_PREFIX + key) } catch { /* ignore */ }
+    }
+
+    // Positions use source paths, not Host ids (which also include file versions).
+    // Keep Windows aliases together while preserving case on POSIX filesystems.
+    function readingPath(path) {
+      if (typeof path !== 'string' || !path || path.includes('\u0000')) return ''
+      let value = path.replace(/\\/g, '/')
+      value = value.replace(/^\/\/\?\/UNC\//i, '//').replace(/^\/\/\?\//, '')
+      const windows = /^[a-z]:\//i.test(value) || value.startsWith('//')
+      const prefix = value.startsWith('//') ? '//' : value.startsWith('/') ? '/' : ''
+      const parts = []
+      for (const part of value.slice(prefix.length).split('/')) {
+        if (!part || part === '.') continue
+        if (part === '..' && parts.length > (windows ? 1 : 0)) parts.pop()
+        else if (part !== '..') parts.push(part)
+      }
+      value = prefix + parts.join('/')
+      return windows ? value.toLowerCase() : value
+    }
+
+    function readingPosition(value, pageCount = Number.MAX_SAFE_INTEGER) {
+      if (!value || typeof value !== 'object' || value.version !== 1 || !Number.isSafeInteger(value.pageNumber) || value.pageNumber < 1) return null
+      if (!Number.isFinite(pageCount) || pageCount < 1) return null
+      const fraction = number => typeof number === 'number' && Number.isFinite(number) ? Math.min(1, Math.max(0, number)) : 0
+      return { version: 1, pageNumber: Math.min(value.pageNumber, Math.floor(pageCount)), x: fraction(value.x), y: fraction(value.y) }
+    }
+
+    function loadReadingPosition(path) {
+      const key = readingPath(path)
+      const entries = readStore('readingPositions', [])
+      if (!key || !Array.isArray(entries)) return null
+      return readingPosition(entries.find(entry => entry && entry.path === key))
+    }
+
+    function saveReadingPosition(path, position) {
+      const key = readingPath(path), valid = readingPosition(position)
+      if (!key || !valid) return
+      const entries = readStore('readingPositions', [])
+      const previous = Array.isArray(entries) ? entries.filter(entry => entry && typeof entry.path === 'string' && entry.path !== key && readingPosition(entry)) : []
+      writeStore('readingPositions', [{ ...valid, path: key, updatedAt: Date.now() }, ...previous].slice(0, 100))
+    }
+
+    const readingWriterId = globalThis.crypto?.randomUUID?.() ?? ('reader-' + Date.now().toString(36) + Math.random().toString(36).slice(2))
+    let readingRevision = 0
+    const readingPendingWrites = new Map()
+    function persistReadingPosition(docId, path, position, onWarning) {
+      const valid = readingPosition(position)
+      if (!valid) return
+      saveReadingPosition(path, valid)
+      const revision = ++readingRevision
+      // Keepalive dispatch is immediate, including pagehide. The Host ignores
+      // late lower revisions from this writer, so an older request cannot win.
+      const key = readingPath(path)
+      const pending = { position: valid, promise: null }
+      const request = fetch(APP_BASE + '/reading-position', {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-dsh-study': '1' }, keepalive: true,
+        body: JSON.stringify({ docId, position: { pageNumber: valid.pageNumber, x: valid.x, y: valid.y }, writerId: readingWriterId, revision }),
+      }).then(async response => {
+        const body = await response.json()
+        if (!response.ok || body.ok !== true) throw new Error('position-storage-unavailable')
+        if (readingPendingWrites.get(key) === pending) {
+          readingPendingWrites.delete(key)
+          onWarning?.(false)
+        }
+        return true
+      }).catch(() => { if (readingPendingWrites.get(key) === pending) onWarning?.(true); return false })
+      pending.promise = request
+      readingPendingWrites.set(key, pending)
+      // Failed writes retain their same-window snapshot for reopening. This is
+      // bounded separately from the browser backup and never sent as Host truth.
+      if (readingPendingWrites.size > 100) readingPendingWrites.delete(readingPendingWrites.keys().next().value)
+    }
+
+    async function fetchReadingPosition(doc) {
+      const key = readingPath(doc.path)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const pending = readingPendingWrites.get(key)
+        if (!pending) break
+        let timer
+        const saved = await Promise.race([pending.promise, new Promise(resolve => { timer = setTimeout(() => resolve(false), 2000) })])
+        clearTimeout(timer)
+        if (!saved) { doc.readerPositionWarning = true; return readingPosition(readingPendingWrites.get(key)?.position ?? pending.position) }
+      }
+      const pending = readingPendingWrites.get(key)
+      if (pending) return readingPosition(pending.position)
+      try {
+        const body = await apiGet('/reading-position?id=' + encodeURIComponent(doc.id))
+        if (body.ok !== true) throw new Error('position-storage-unavailable')
+        if (body.position) {
+          const position = readingPosition({ ...body.position, version: 1 })
+          if (!position) throw new Error('invalid-reading-position')
+          return position
+        }
+      } catch { doc.readerPositionWarning = true }
+      return loadReadingPosition(doc.path)
+    }
+
+    function captureReadingPosition(root, pageNumber) {
+      const page = root?.querySelector('.dsr-pdf-page[data-page="' + pageNumber + '"]')
+      if (!root || !page) return null
+      const rect = page.getBoundingClientRect(), view = root.getBoundingClientRect()
+      if (!(rect.width > 0 && rect.height > 0)) return null
+      return readingPosition({ version: 1, pageNumber, x: (view.left + 16 - rect.left) / rect.width, y: (view.top + 16 - rect.top) / rect.height })
+    }
+
+    // Cache coordinates immediately, debounce only storage. A teardown can happen
+    // after React has detached refs, so flushing must not need a live DOM node.
+    function readingPositionWriter(save, delay = 180) {
+      let latest = null, timer = 0
+      const flush = () => {
+        if (timer) clearTimeout(timer)
+        timer = 0
+        if (latest) { save(latest); latest = null }
+      }
+      return {
+        record(position) {
+          const valid = readingPosition(position)
+          if (!valid) return
+          latest = valid
+          if (timer) clearTimeout(timer)
+          timer = setTimeout(flush, delay)
+        },
+        flush,
+      }
+    }
+
+    // Wait for actual text/canvas geometry, then correct delayed neighbouring
+    // page layout in continuous mode. Wheel/touch/key input ends correction so
+    // restoring a file never fights the reader's own navigation.
+    function restoreReadingPosition(root, position, expectedWidth, onDone) {
+      let stopped = false, applied = false, frame = 0, settleTimer = 0, cutoffTimer = 0
+      const cleanup = () => {
+        stopped = true
+        if (frame) cancelAnimationFrame(frame)
+        clearTimeout(settleTimer)
+        clearTimeout(cutoffTimer)
+        resize?.disconnect(); mutation?.disconnect()
+        for (const name of ['wheel', 'pointerdown', 'touchstart', 'keydown']) root.removeEventListener(name, interrupt)
+      }
+      const finish = () => { if (stopped) return; cleanup(); onDone(applied) }
+      const interrupt = () => finish()
+      const apply = () => {
+        frame = 0
+        if (stopped) return
+        const page = root.querySelector('.dsr-pdf-page[data-page="' + position.pageNumber + '"]')
+        const layer = page?.querySelector('.dsr-pdf-textLayer[data-search-page="' + position.pageNumber + '"]')
+        if (!page || !layer) return
+        const rect = page.getBoundingClientRect(), view = root.getBoundingClientRect()
+        if (!(rect.width > 0 && rect.height > 0) || Math.abs(rect.width - expectedWidth) > 2) return
+        const top = Math.max(0, root.scrollTop + rect.top - view.top - 16 + position.y * rect.height)
+        const left = Math.max(0, root.scrollLeft + rect.left - view.left - 16 + position.x * rect.width)
+        root.scrollTo({ top, left, behavior: 'auto' })
+        if (!applied) cutoffTimer = setTimeout(finish, 4000)
+        applied = true
+        clearTimeout(settleTimer)
+        settleTimer = setTimeout(finish, 1000)
+      }
+      const schedule = () => {
+        if (stopped) return
+        clearTimeout(settleTimer)
+        if (!frame) frame = requestAnimationFrame(apply)
+      }
+      const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+      const mutation = typeof MutationObserver === 'undefined' ? null : new MutationObserver(schedule)
+      resize?.observe(root)
+      // Observe the flow itself: preceding page height changes move the target
+      // without changing its own size or firing a resize on the scroll root.
+      const stage = root.querySelector('.dsr-pdf-flow, .dsr-pdf-stage')
+      if (stage) resize?.observe(stage)
+      mutation?.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'data-search-page'] })
+      for (const name of ['wheel', 'pointerdown', 'touchstart', 'keydown']) root.addEventListener(name, interrupt, { passive: true })
+      schedule()
+      return cleanup
     }
 
     function formatBytes(bytes) {
@@ -3715,6 +3890,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const [status, setStatus] = useState('loading')
       const [error, setError] = useState('')
       const [pdfApi, setPdfApi] = useState(null)
+      const [positionWarning, setPositionWarning] = useState(doc.readerPositionWarning === true)
+      const resumePositionRef = useRef(readingPosition(doc.readerPosition) ?? loadReadingPosition(doc.path))
       const [pageNumber, setPageNumber] = useState(1)
       const [pageCount, setPageCount] = useState(0)
       const [availableWidth, setAvailableWidth] = useState(0)
@@ -3733,8 +3910,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const [navigation, setNavigation] = useState(null)
       const historyRef = useRef({ back: [], forward: [] })
       const [, refreshHistory] = useState(0)
-      const restoringRef = useRef(false)
+      const restoringRef = useRef(resumePositionRef.current !== null)
       const pendingPositionRef = useRef(null)
+      const positionWriterRef = useRef(null)
+      const persistenceStateRef = useRef(null)
       const [pageSize, setPageSize] = useState({ width: 0, height: 0 })
       const [rendering, setRendering] = useState(false)
       const [pageDraft, setPageDraft] = useState('1')
@@ -3761,14 +3940,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       docRef.current = doc
       onEngineRef.current = onEngine
 
-      const capturePosition = () => {
-        const root = scrollRef.current
-        const page = root?.querySelector('.dsr-pdf-page[data-page="' + pageNumber + '"]')
-        if (!root || !page) return { pageNumber, x: 0, y: 0 }
-        const rect = page.getBoundingClientRect()
-        const view = root.getBoundingClientRect()
-        return { pageNumber, x: Math.max(0, (view.left + 16 - rect.left) / Math.max(1, rect.width)), y: Math.max(0, (view.top + 16 - rect.top) / Math.max(1, rect.height)) }
-      }
+      persistenceStateRef.current = { status, pageNumber, mode, rendering, width }
+      const capturePosition = () => captureReadingPosition(scrollRef.current, pageNumber) ?? { version: 1, pageNumber, x: 0, y: 0 }
       const navigateTo = (target, { remember = true, position = null } = {}) => {
         target = Math.min(pageCount, Math.max(1, Math.floor(Number(target) || 1)))
         if (remember) {
@@ -3826,22 +3999,59 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         return () => { root.removeEventListener('mouseup', onMouse); root.removeEventListener('mousedown', preventAux); root.removeEventListener('auxclick', preventAux) }
       }, [status, pageNumber, pageCount, mode])
       useEffect(() => {
-        if (status !== 'ready' || !pendingPositionRef.current) return undefined
+        if (status !== 'ready' || !pendingPositionRef.current || width <= 0) return undefined
         const position = pendingPositionRef.current
         if (position.pageNumber !== pageNumber || naturalSize.pageNumber !== pageNumber) return undefined
-        if (mode === 'single' && (rendering || Math.abs(pageSize.width - width) > 1)) return undefined
-        const frame = requestAnimationFrame(() => {
-          const root = scrollRef.current
-          const page = root?.querySelector('.dsr-pdf-page[data-page="' + pageNumber + '"]')
-          if (!page || !root) return
-          const rect = page.getBoundingClientRect(), view = root.getBoundingClientRect()
-          root.scrollTo({ top: Math.max(0, root.scrollTop + rect.top - view.top - 16 + position.y * rect.height), left: Math.max(0, root.scrollLeft + rect.left - view.left - 16 + position.x * rect.width), behavior: 'auto' })
+        const root = scrollRef.current
+        if (!root) return undefined
+        return restoreReadingPosition(root, position, width, () => {
+          if (pendingPositionRef.current !== position) return
           pendingPositionRef.current = null
           restoringRef.current = false
           root.dispatchEvent(new Event('dsr-position-restored'))
         })
-        return () => cancelAnimationFrame(frame)
-      }, [navigation, width, pageNumber, mode, status, rendering, pageSize, naturalSize])
+      }, [navigation, width, pageNumber, mode, status, naturalSize])
+
+      useEffect(() => {
+        if (status !== 'ready') return undefined
+        const root = scrollRef.current
+        if (!root) return undefined
+        let active = true
+        const writer = readingPositionWriter(position => persistReadingPosition(doc.id, doc.path, position, warning => { if (active) setPositionWarning(warning) }))
+        positionWriterRef.current = writer
+        const record = () => {
+          const state = persistenceStateRef.current
+          if (!state || state.status !== 'ready' || restoringRef.current || pendingPositionRef.current) return
+          if (state.mode === 'single' && state.rendering) return
+          const page = root.querySelector('.dsr-pdf-page[data-page="' + state.pageNumber + '"]')
+          if (!page?.querySelector('.dsr-pdf-textLayer[data-search-page="' + state.pageNumber + '"]')) return
+          const position = captureReadingPosition(root, state.pageNumber)
+          if (position) writer.record(position)
+        }
+        const flush = () => { record(); writer.flush() }
+        const hide = () => { if (document.visibilityState === 'hidden') flush() }
+        root.addEventListener('scroll', record, { passive: true })
+        root.addEventListener('dsr-position-restored', record)
+        window.addEventListener('pagehide', flush)
+        document.addEventListener('visibilitychange', hide)
+        record()
+        return () => {
+          root.removeEventListener('scroll', record)
+          root.removeEventListener('dsr-position-restored', record)
+          window.removeEventListener('pagehide', flush)
+          document.removeEventListener('visibilitychange', hide)
+          active = false
+          writer.flush()
+          if (positionWriterRef.current === writer) positionWriterRef.current = null
+        }
+      }, [status, mode, doc.id, doc.path])
+
+      useEffect(() => {
+        if (status !== 'ready' || restoringRef.current || pendingPositionRef.current) return
+        const position = captureReadingPosition(scrollRef.current, pageNumber)
+        const page = scrollRef.current?.querySelector('.dsr-pdf-textLayer[data-search-page="' + pageNumber + '"]')
+        if (page && !rendering && position) positionWriterRef.current?.record(position)
+      }, [status, pageNumber, rendering, pageSize, mode])
 
       useSearchMarks(scrollRef, searchHit, pendingPositionRef, onSearchStatus, status + ':' + mode)
 
@@ -3886,6 +4096,12 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
       const switchMode = next => {
         if (next === mode) return
+        const position = capturePosition()
+        positionWriterRef.current?.record(position)
+        positionWriterRef.current?.flush()
+        pendingPositionRef.current = position
+        restoringRef.current = true
+        setNavigation({ token: Date.now() + Math.random(), pageNumber })
         onSelectRef.current?.(null)
         try { window.getSelection()?.removeAllRanges() } catch { /* ignore */ }
         setMode(next)
@@ -3900,6 +4116,8 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         setError('')
         setPdfApi(null)
         setPageCount(0)
+        restoringRef.current = true
+        pendingPositionRef.current = null
         setPageNumber(1)
         setPageDraft('1')
         setPageSize({ width: 0, height: 0 })
@@ -3958,10 +4176,16 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               pdfDocument = null
               return
             }
+            const position = readingPosition(resumePositionRef.current, pdfDocument.numPages) ?? { version: 1, pageNumber: 1, x: 0, y: 0 }
+            pendingPositionRef.current = position
+            restoringRef.current = true
+            setPageNumber(position.pageNumber)
+            setPageDraft(String(position.pageNumber))
+            setNavigation({ token: Date.now() + Math.random(), pageNumber: position.pageNumber })
             setPdfApi({ pdfjs, pdf: pdfDocument })
             setPageCount(pdfDocument.numPages)
             setStatus('ready')
-            const first = blockForPdfPage(docRef.current, 1, pdfDocument.numPages, '')
+            const first = blockForPdfPage(docRef.current, position.pageNumber, pdfDocument.numPages, '')
             if (first !== undefined) onPositionBlockRef.current?.(first.id)
           } catch (loadError) {
             if (cancelled) return
@@ -4206,7 +4430,13 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           if (status !== 'ready') return false
           const root = scrollRef.current
           if (!root) return false
-          if (command === 'previous-page' || command === 'next-page') goPage(pageNumber + (command === 'next-page' ? 1 : -1))
+          if (command === 'flush-position') {
+            if (!restoringRef.current && !pendingPositionRef.current) {
+              const position = capturePosition()
+              positionWriterRef.current?.record(position)
+            }
+            positionWriterRef.current?.flush()
+          } else if (command === 'previous-page' || command === 'next-page') goPage(pageNumber + (command === 'next-page' ? 1 : -1))
           else if (command === 'scroll-up' || command === 'scroll-down') root.scrollBy({ top: command === 'scroll-down' ? 80 : -80, behavior: 'auto' })
           else if (command === 'back' || command === 'forward') travel(command)
           else if (command === 'page-number') {
@@ -4298,6 +4528,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           ? h('div', { className: 'dsr-original-warnings' },
             h('div', { className: 'dsr-warning' }, h(Icon, { name: 'alert', size: 12 }), h('span', null, tr(t, 'pdfCompatWarning', { version: pluginVersion || '?' }))))
           : null,
+        positionWarning ? h('div', { className: 'dsr-warning', role: 'status', style: { padding: '7px 12px' } }, t('readingPositionFallback')) : null,
         status === 'loading'
           ? h('div', { className: 'dsr-original-loading' }, h(Spinner, null), h('span', null, t('originalLoading')))
           : status === 'error'
@@ -4351,7 +4582,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
                       t,
                       onSelect,
                       onPageChange: handleContinuousPage,
-                      onPositionBlock,
+                      onPositionBlock: blockId => { if (!restoringRef.current) onPositionBlockRef.current?.(blockId) },
                       onEngine: setEngine,
                       marksByPage, onEditNote,
                       currentAspect: naturalSize.pageNumber === pageNumber ? naturalSize.height / naturalSize.width : null,
@@ -4601,6 +4832,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
       const openPath = useCallback(async (path, options = {}) => {
         if (openingRef.current !== null) return
+        readerControlsRef.current?.('flush-position')
         openingRef.current = path
         setOpeningPath(path)
         setOpenError('')
@@ -4613,6 +4845,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           })()
           if (body?.ok !== true || body.doc === undefined) throw new Error(body?.error?.message ?? t('parseError'))
           const nextDoc = body.doc
+          nextDoc.readerPosition = await fetchReadingPosition(nextDoc)
           setDoc(nextDoc)
           setActivePage(0)
           setPdfPageCount(0)
