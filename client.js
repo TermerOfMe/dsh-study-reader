@@ -985,7 +985,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       if (literal === '-' && !event.shiftKey) return scope === 'reader' ? 'zoom-out' : null
       if (event.shiftKey) return null
       if (scope === 'reader') return ({ arrowleft: 'previous-page', arrowright: 'next-page', arrowup: 'scroll-up', arrowdown: 'scroll-down', g: 'page-number' })[key] ?? null
-      return ({ f: 'search', o: 'toc', q: 'ask', t: 'translate', e: 'highlight', r: 'note' })[literal] ?? null
+      return ({ f: 'search', o: 'toc', q: 'ask', x: 'new-chat', t: 'translate', e: 'highlight', r: 'note' })[literal] ?? null
     }
 
     function isKeyboardInput(target) {
@@ -3089,7 +3089,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             h('small', null, panelTab === 'chat' ? positionLabel : t('translateSub'))
           ),
           panelTab === 'chat' && messages.length > 0
-            ? h('button', { type: 'button', className: 'dsr-icon-btn', onClick: onClearChat, title: t('newChat'), 'aria-label': t('newChat') }, h(Icon, { name: 'refresh', size: 14 }))
+            ? h('button', { type: 'button', className: 'dsr-icon-btn', onClick: onClearChat, title: t('newChat') + ' (X)', 'aria-label': t('newChat') }, h(Icon, { name: 'refresh', size: 14 }))
             : null,
           h('button', { type: 'button', className: 'dsr-icon-btn', onClick: onClose, title: t('closePanel'), 'aria-label': t('closePanel') }, h(Icon, { name: 'panel', size: 15 }))
         ),
@@ -5262,8 +5262,10 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           }
         } finally {
           stopFlush()
-          if (askAbortRef.current === controller) askAbortRef.current = null
-          setBusy(false)
+          if (askAbortRef.current === controller) {
+            askAbortRef.current = null
+            setBusy(false)
+          }
         }
       }, [busy, doc, messages, mode, positionBlock, activePage, setChatOpenPersisted, t])
 
@@ -5443,14 +5445,19 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         void translateSelection(item.targetLanguage, { text: item.source, blockId: item.blockId, page: doc.blocks[item.blockId]?.page ?? 0 })
       }, [doc, translateSelection])
 
-      const clearChat = useCallback(() => {
+      const clearChat = useCallback((skipConfirmation = false) => {
         if (doc === null) return
-        if (messages.length > 0 && !window.confirm(t('clearChatConfirm'))) return
+        if (!skipConfirmation && messages.length > 0 && !window.confirm(t('clearChatConfirm'))) return
         askAbortRef.current?.abort()
+        askAbortRef.current = null
+        setBusy(false)
         setMessages([])
+        setQuestionDraft('')
+        setPendingQuote(null)
         removeStore(`chat:${doc.path}`)
+        askFromSelection()
         showToast(t('clearChat'))
-      }, [doc, messages.length, showToast, t])
+      }, [doc, messages.length, askFromSelection, showToast, t])
 
       const clearTranslations = useCallback(() => {
         translationAbortRef.current?.abort()
@@ -5490,7 +5497,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         setJumpRequest(previous => ({ pageNumber, blockId, token: (previous?.token ?? 0) + 1 }))
       }, [doc?.extension, scrollToBlock])
 
-      // F/Q/R/G may move focus to an editor. Do not let the same held key
+      // F/Q/X/R/G may move focus to an editor. Do not let the same held key
       // start typing there before its matching keyup or window blur.
       const onReaderKeyCapture = event => {
         if (event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229) return
@@ -5500,7 +5507,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         }
         if (isKeyboardInput(event.target)) return
         const action = keyboardCommand(event, 'page')
-        if (['search','ask','note'].includes(action) || keyboardCommand(event, 'reader') === 'page-number') heldActivationRef.current = key
+        if (['search','ask','new-chat','note'].includes(action) || keyboardCommand(event, 'reader') === 'page-number') heldActivationRef.current = key
       }
 
       const onReaderKeyDown = event => {
@@ -5535,6 +5542,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         if (command === 'search') { setSelection(null); setTocOpen(false); setSearchOpen(true) }
         else if (command === 'toc') { setSelection(null); setSearchOpen(false); setTocOpen(true) }
         else if (command === 'ask') askFromSelection()
+        else if (command === 'new-chat') clearChat(true)
         else if (command === 'translate' || command === 'highlight' || command === 'note') {
           if (!selection) { showToast(t('shortcutNeedsSelection')); return }
           if (command === 'translate') void translateSelection(targetLanguage || boot?.defaults?.defaultTargetLanguage || 'zh-CN')
@@ -5628,7 +5636,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               doc, t, mode, setMode: setModePersisted, panelTab, setPanelTab,
               messages, busy, onSend: sendQuestion, onStop: stopQuestion, draft: questionDraft, setDraft: setQuestionDraft,
               quote: pendingQuote, onClearQuote: () => setPendingQuote(null),
-              onClearChat: clearChat,
+              onClearChat: () => clearChat(),
               onAhead: scrollToBlock,
               onReadPage: readPage,
               translations, targetLanguage, setTargetLanguage: setTargetLanguagePersisted,

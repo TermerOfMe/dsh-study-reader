@@ -11,6 +11,12 @@ the project adheres to [Semantic Versioning](https://semver.org/).
 - Multi-document tabs.
 - Split `client.js` into source modules behind a small bundler step.
 
+## [1.16.6] - 2026-11-13
+
+### Added
+- X 直接开始新对话：清空当前文档问答与草稿、取消旧生成并聚焦问答输入框；有文字或区域选区时自动附上引用，不自动发送问题。新对话按钮共用重置逻辑并保留确认框。
+- 输入框、输入法组词、修饰键和弹窗中不触发 X；长按激活键不会向刚聚焦的输入框灌入字母。
+
 ## [1.16.5] - 2026-11-13
 
 ### Fixed

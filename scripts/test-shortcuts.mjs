@@ -63,17 +63,17 @@ test('G and zoom controls are restricted to the reader', () => {
   }
 })
 
-test('page actions map F/O/Q/T/E/R to accepted commands', () => {
+test('page actions map F/O/Q/X/T/E/R to accepted commands', () => {
   expectKeys('page', [
-    ['f', 'search'], ['o', 'toc'], ['q', 'ask'],
+    ['f', 'search'], ['o', 'toc'], ['q', 'ask'], ['x', 'new-chat'],
     ['t', 'translate'], ['e', 'highlight'], ['r', 'note'],
   ])
-  expectKeys('reader', ['f', 'o', 'q', 't', 'e', 'r'].map(key => [key, null]))
+  expectKeys('reader', ['f', 'o', 'q', 'x', 't', 'e', 'r'].map(key => [key, null]))
 })
 
 test('F inside search edits the query rather than reopening search', () => {
   assert.equal(command('f', 'search'), 'search-input')
-  expectKeys('search', ['o', 'q', 't', 'e', 'r', 'g'].map(key => [key, null]))
+  expectKeys('search', ['o', 'q', 'x', 't', 'e', 'r', 'g'].map(key => [key, null]))
 })
 
 test('search Enter and Shift+Enter move next and previous', () => {
@@ -88,7 +88,7 @@ test('search Enter and Shift+Enter move next and previous', () => {
 test('uppercase keys without Shift preserve all letter aliases and actions', () => {
   expectKeys('reader', [['W', 'scroll-up'], ['A', 'previous-page'], ['S', 'scroll-down'], ['D', 'next-page'], ['G', 'page-number']])
   expectKeys('search', [['W', 'previous-result'], ['A', 'previous-result'], ['S', 'next-result'], ['D', 'next-result'], ['F', 'search-input']])
-  expectKeys('page', [['F', 'search'], ['O', 'toc'], ['Q', 'ask'], ['T', 'translate'], ['E', 'highlight'], ['R', 'note']])
+  expectKeys('page', [['F', 'search'], ['O', 'toc'], ['Q', 'ask'], ['X', 'new-chat'], ['T', 'translate'], ['E', 'highlight'], ['R', 'note']])
   expectKeys('reader', [['A', 'back'], ['D', 'forward']], { altKey: true })
 })
 
@@ -99,7 +99,7 @@ test('IME, nativeEvent composition, keyCode229 and handled events suppress every
     { keyCode: 229 },
     { defaultPrevented: true },
   ]
-  const keys = ['w', 'a', 's', 'd', 'g', '+', '-', 'f', 'o', 'q', 't', 'e', 'r', 'Enter', 'ArrowLeft']
+  const keys = ['w', 'a', 's', 'd', 'g', '+', '-', 'f', 'o', 'q', 'x', 't', 'e', 'r', 'Enter', 'ArrowLeft']
   for (const scope of scopes) for (const guard of guards) for (const key of keys) {
     assert.equal(command(key, scope, guard), null, `${scope}: ${key} ${JSON.stringify(guard)}`)
     assert.equal(command(key, scope, { ...guard, altKey: true }), null)
@@ -109,7 +109,7 @@ test('IME, nativeEvent composition, keyCode229 and handled events suppress every
 
 test('Ctrl and Meta combinations never dispatch reader shortcuts', () => {
   for (const scope of scopes) for (const modifier of ['ctrlKey', 'metaKey']) {
-    for (const key of ['w', 'a', 's', 'd', 'g', '+', '-', 'f', 'o', 'q', 't', 'e', 'r', 'Enter', 'ArrowLeft']) {
+    for (const key of ['w', 'a', 's', 'd', 'g', '+', '-', 'f', 'o', 'q', 'x', 't', 'e', 'r', 'Enter', 'ArrowLeft']) {
       for (const extra of [{}, { altKey: true }, { shiftKey: true }]) {
         assert.equal(command(key, scope, { ...extra, [modifier]: true }), null, `${scope}: ${modifier} ${key}`)
       }
@@ -119,14 +119,14 @@ test('Ctrl and Meta combinations never dispatch reader shortcuts', () => {
 
 test('unsupported Alt combinations and Alt+Shift are ignored', () => {
   for (const scope of scopes) {
-    expectKeys(scope, ['w', 's', 'ArrowUp', 'ArrowDown', 'g', '+', '-', 'f', 'o', 'q', 't', 'e', 'r', 'Enter'].map(key => [key, null]), { altKey: true })
+    expectKeys(scope, ['w', 's', 'ArrowUp', 'ArrowDown', 'g', '+', '-', 'f', 'o', 'q', 'x', 't', 'e', 'r', 'Enter'].map(key => [key, null]), { altKey: true })
     expectKeys(scope, ['a', 'd', 'ArrowLeft', 'ArrowRight', '+', 'Enter'].map(key => [key, null]), { altKey: true, shiftKey: true })
   }
 })
 
 test('unsupported Shift combinations are ignored, including shifted equals/minus', () => {
   for (const scope of scopes) {
-    expectKeys(scope, ['w', 'a', 's', 'd', 'g', 'f', 'o', 'q', 't', 'e', 'r', 'W', 'F', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '=', '-', '_'].map(key => [key, null]), { shiftKey: true })
+    expectKeys(scope, ['w', 'a', 's', 'd', 'g', 'f', 'o', 'q', 'x', 't', 'e', 'r', 'W', 'F', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '=', '-', '_'].map(key => [key, null]), { shiftKey: true })
   }
 })
 
