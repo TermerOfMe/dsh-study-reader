@@ -102,6 +102,34 @@ test('PDF label fallback is physical only for PDF; sourcePage and array position
   assert.equal(resolveEvidence(doc, '[第 9 页]').pdfPage, 9)
 })
 
+test('block ranges resolve every source in order and retain bounded previews', () => {
+  const doc = pdf()
+  doc.blocks = Array.from({ length: 7 }, (_, index) => ({ id: 169 + index, page: index < 3 ? 0 : 1, text: `Source ${169 + index}` })).reverse()
+  for (const ref of ['[B169–B175]', '[B169-B175]', '[B169—175]', '[B169 − B175]', '[B169~175]', '[B169～B175]']) {
+    const result = resolveEvidence(doc, ref, { pageCount: 8 })
+    assert.equal(result.reference, '[B169–B175]')
+    assert.equal(result.blockId, 169)
+    assert.equal(result.pdfPage, 1)
+    assert.equal(result.label, '第 1 页 – 第 4 页 · B169–B175')
+    assert.deepEqual(result.blocks.map(block => block.blockId), [169, 170, 171, 172, 173, 174])
+    assert.equal(result.truncated, true)
+  }
+  assert.equal(resolveEvidence(doc, '[B169–B169]').reference, '[B169]')
+})
+
+test('ranges reject missing, ambiguous, reversed, unsafe and unavailable sources', () => {
+  const doc = pdf()
+  for (const ref of ['[B1–B0]', '[B0–B2]', '[B00–B1]', '[B0–B01]', '[B0–B9007199254740992]', '[B0–B9007199254740991]', '[B0\n–B1]']) {
+    assert.equal(resolveEvidence(doc, ref), null, ref)
+  }
+  assert.equal(resolveEvidence(doc, '[B0–B1]', { pageCount: 3 }), null)
+  doc.blocks.push({ id: 1, page: 0, text: 'duplicate' })
+  assert.equal(resolveEvidence(doc, '[B0–B1]'), null)
+  doc.blocks.pop()
+  doc.blocks[1].page = 99
+  assert.equal(resolveEvidence(doc, '[B0–B1]'), null)
+})
+
 test('answer prompts distinguish inference and source location while preserving learning policy and AHEAD', () => {
   const doc = pdf()
   for (const mode of ['learn', 'reread']) {

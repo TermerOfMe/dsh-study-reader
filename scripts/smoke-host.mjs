@@ -117,6 +117,18 @@ const llm = {
 
 let registered
 let annotationTool
+let officeServiceName = 'officeKit'
+let officeFailure
+let officeCalls = 0
+const officeProvider = {
+  async convert(request) {
+    officeCalls += 1
+    if (officeFailure) throw officeFailure
+    const source = await request.source.read(new AbortController().signal, 1_000_000)
+    if (!(source.bytes instanceof Uint8Array)) throw new Error('Office source must supply bytes')
+    return { pdf }
+  },
+}
 const ctx = {
   inject(names, callback) { if (names.includes('tools')) callback({ tools: { register(definition) { annotationTool = definition; return () => {} } } }) },
   webServer: {
@@ -126,7 +138,7 @@ const ctx = {
     },
   },
   get(name) {
-    if (name === 'officeToPdf') return { async convert() { return { pdf } } }
+    if (name === officeServiceName) return officeProvider
     if (name === 'fs') return fs
     if (name === 'llm') return llm
     if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'fake', model: 'fake-model' }) }
@@ -201,6 +213,22 @@ const getJson = async path => {
 }
 
 try {
+  for (const serviceName of ['officeKit', 'officeToPdf']) {
+    officeServiceName = serviceName
+    const officeBoot = await getJson('/bootstrap')
+    expect(officeBoot.body.officeAvailable === true, `${serviceName} exposes conversion capability`)
+    const before = officeCalls
+    const officeOpened = await post('/open', { path: `compat-${serviceName}.doc` })
+    expect(officeOpened.status === 200, `${serviceName} opens legacy Office: ${officeOpened.text}`)
+    expect(officeCalls > before, `${serviceName} actually converts Office bytes`)
+  }
+  officeServiceName = 'officeKit'
+  officeFailure = Object.assign(new Error('Kit missing'), { code: 'unavailable' })
+  const missingKit = await post('/open', { path: 'compat-missing-kit.doc' })
+  expect(missingKit.status === 503 && JSON.parse(missingKit.text).error.code === 'office-unavailable', 'registered Office service with missing Kit reports unavailable')
+  officeFailure = undefined
+  const retryKit = await post('/open', { path: 'compat-missing-kit.doc' })
+  expect(retryKit.status === 200, 'Office conversion retries successfully after Kit becomes available')
   for (const [asset, mime] of [['katex.mjs', 'text/javascript'], ['katex.min.css', 'text/css'], ['fonts/KaTeX_Main-Regular.woff2', 'font/woff2']]) {
     const response = await fetch(`${base}/vendor/katex/${asset}`)
     expect(response.status === 200, `math asset ${asset} should load`)

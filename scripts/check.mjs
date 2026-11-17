@@ -30,6 +30,8 @@ expect((await read('client.js')).includes(`id: '${manifest.name}'`), 'Client mod
 expect(manifest.publishConfig?.registry === 'https://registry.npmjs.org/', 'publish registry must be npm official registry')
 expect(lock.version === manifest.version, `package-lock version ${lock.version} != package.json ${manifest.version}`)
 expect(lock.packages?.['']?.version === manifest.version, 'package-lock root entry version differs')
+expect(typeof manifest.engines?.dsh === 'string' && manifest.engines.dsh.trim() !== '', 'engines.dsh must declare verified DSH releases')
+expect(lock.packages?.['']?.engines?.dsh === manifest.engines?.dsh, 'package-lock root DSH compatibility differs')
 
 const host = await read('lib/app.js')
 expect(host.includes('PLUGIN_VERSION'), 'lib/app.js must derive the version from package.json')

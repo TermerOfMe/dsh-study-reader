@@ -764,7 +764,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 .dsr-trans-card-head .dsr-lang-badge{font-size:9px;padding:1px 5px;border-radius:99px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary)}
 .dsr-trans-card-body{padding:9px 10px 10px}
 .dsr-trans-source{margin:0 0 8px;padding-left:8px;border-left:1px solid var(--dsw-alias-border-l2);font-size:10.5px;line-height:1.6;color:var(--dsw-alias-label-secondary);white-space:pre-wrap;max-height:120px;overflow:auto}
-.dsr-trans-result{font-size:12.5px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.dsr-trans-result{font-size:12.5px;line-height:1.75;overflow-wrap:anywhere}
 .dsr-trans-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:7px}
 .dsr-mini-btn{appearance:none;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font-size:10px;padding:3px 6px;border-radius:5px;display:inline-flex;align-items:center;gap:3px;cursor:pointer}
 .dsr-mini-btn:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
@@ -1124,6 +1124,97 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
      * candidate. A plain drag still selects text, so the same selection bar
      * can quote either text or an image region.
      */
+    // Expand only boundaries inside a Latin word; punctuation, CJK and spaces
+    // keep their native boundaries. Internal apostrophes and hyphens belong
+    // to a word, including contractions and hyphenated technical terms.
+    function englishWordBounds(text, start, end) {
+      let left = start, right = end
+      const words = /[\p{Script=Latin}\p{M}\d]+(?:['’\-‐‑][\p{Script=Latin}\p{M}\d]+)*/gu
+      for (const match of text.matchAll(words)) {
+        const from = match.index, to = from + match[0].length
+        if (!/\p{Script=Latin}/u.test(match[0])) continue
+        if (from < start && start < to) left = from
+        if (from < end && end < to) right = to
+        if (from > end) break
+      }
+      return { start: left, end: right }
+    }
+
+    function expandEnglishSelection(selection, root) {
+      if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return false
+      const range = selection.getRangeAt(0)
+      const elementFor = node => node?.nodeType === 1 ? node : node?.parentElement
+      const firstLayer = elementFor(range.startContainer)?.closest('.dsr-pdf-textLayer')
+      const lastLayer = elementFor(range.endContainer)?.closest('.dsr-pdf-textLayer')
+      if (!firstLayer || !lastLayer || !root.contains(firstLayer) || !root.contains(lastLayer)) return false
+      const boundary = (layer, container, offset, side) => {
+        const entries = [], positions = new Map()
+        let text = ''
+        const visit = node => {
+          const start = text.length
+          if (node.nodeType === 3) {
+            entries.push({ node, start, end: start + node.data.length })
+            text += node.data
+          } else if (node.nodeType === 1 && node.tagName === 'BR') text += '\n'
+          else for (const child of node.childNodes) visit(child)
+          positions.set(node, { start, end: text.length })
+        }
+        visit(layer)
+        const position = positions.get(container)
+        if (!position) return null
+        const index = container.nodeType === 3 ? position.start + offset
+          : offset < container.childNodes.length ? positions.get(container.childNodes[offset])?.start : position.end
+        if (!Number.isInteger(index)) return null
+        const bounds = englishWordBounds(text, index, index)
+        const target = side === 'start' ? bounds.start : bounds.end
+        if (target === index) return null
+        const entry = side === 'start'
+          ? entries.find(item => item.start <= target && target < item.end)
+          : entries.find(item => item.start < target && target <= item.end)
+        return entry ? { node: entry.node, offset: target - entry.start } : null
+      }
+      const start = boundary(firstLayer, range.startContainer, range.startOffset, 'start')
+      const end = boundary(lastLayer, range.endContainer, range.endOffset, 'end')
+      if (!start && !end) return false
+      const backward = selection.anchorNode === range.endContainer && selection.anchorOffset === range.endOffset
+      const expanded = range.cloneRange()
+      if (start) expanded.setStart(start.node, start.offset)
+      if (end) expanded.setEnd(end.node, end.offset)
+      if (typeof selection.setBaseAndExtent === 'function') {
+        selection.setBaseAndExtent(
+          backward ? expanded.endContainer : expanded.startContainer,
+          backward ? expanded.endOffset : expanded.startOffset,
+          backward ? expanded.startContainer : expanded.endContainer,
+          backward ? expanded.startOffset : expanded.endOffset)
+      } else { selection.removeAllRanges(); selection.addRange(expanded) }
+      return true
+    }
+
+    function bindEnglishWordSelection(root) {
+      if (!root) return () => {}
+      let dragging = null
+      const down = event => {
+        dragging = event.button === 0 && (!event.pointerType || event.pointerType === 'mouse')
+          && !event.ctrlKey && !event.metaKey && root.contains(event.target)
+          && event.target?.closest?.('.dsr-pdf-textLayer') ? event.pointerId : null
+      }
+      const snap = () => { if (dragging !== null) expandEnglishSelection(window.getSelection(), root) }
+      const up = event => { if (event.pointerId === dragging) { snap(); dragging = null } }
+      const cancel = () => { dragging = null }
+      document.addEventListener('pointerdown', down, true)
+      document.addEventListener('selectionchange', snap)
+      document.addEventListener('pointerup', up, true)
+      document.addEventListener('pointercancel', cancel, true)
+      window.addEventListener('blur', cancel)
+      return () => {
+        document.removeEventListener('pointerdown', down, true)
+        document.removeEventListener('selectionchange', snap)
+        document.removeEventListener('pointerup', up, true)
+        document.removeEventListener('pointercancel', cancel, true)
+        window.removeEventListener('blur', cancel)
+      }
+    }
+
     function useRegionSelection(containerRef, enabled, onSelect) {
       const selectRef = useRef(onSelect)
       selectRef.current = onSelect
@@ -2225,7 +2316,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       )
     }
 
-    const INLINE_RE = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|\[(?:第\s*\d+\s*[页张]|B\d+)\])/g
+    const INLINE_RE = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|\[(?:第\s*\d+\s*[页张]|B\d+(?:[ \t]*[-–—−~～][ \t]*B?\d+)?)\])/g
 
     function inlineNodes(text, keyPrefix, math = null) {
       const nodes = []
@@ -3058,8 +3149,26 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         }, item.name || item.model)))))
     }
 
+    // Only an explicit return to the bottom resumes following. New tokens and
+    // generation status changes must never override the reader's scroll choice.
+    function createAnswerScroll() {
+      let following = true
+      return {
+        onScroll: event => {
+          const element = event.currentTarget
+          following = element.scrollHeight - element.scrollTop - element.clientHeight <= 4
+        },
+        onWheel: event => { if (event.deltaY < 0) following = false },
+        follow: element => {
+          if (element && following) element.scrollTop = element.scrollHeight
+        },
+      }
+    }
+
     function ChatBody({ t, mode, setMode, messages, busy, onSend, onStop, quote, onClearQuote, onClear, empty, onAhead, onReadPage, scrollRef, docId, onToast, draft, setDraft, onEdit, onFork, modelPicker }) {
       const inputRef = useRef(null)
+      const scrollFollowingRef = useRef(null)
+      if (scrollFollowingRef.current === null) scrollFollowingRef.current = createAnswerScroll()
       const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined
       const lastTextLength = lastMessage?.text?.length ?? 0
       const lastId = lastMessage?.id ?? ''
@@ -3073,10 +3182,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       }, [quote])
 
       useEffect(() => {
-        const element = scrollRef.current
-        if (element === null) return
-        const nearBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 160
-        if (nearBottom || busy) element.scrollTop = element.scrollHeight
+        scrollFollowingRef.current.follow(scrollRef.current)
         // Reasoning-only updates change neither the message count nor the
         // answer text length, so they must not force a layout + scroll on
         // every throttled reasoning frame.
@@ -3112,7 +3218,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           ),
           h('p', { className: 'dsr-mode-desc' }, mode === 'reread' ? t('modeRereadDesc') : t('modeLearnDesc'))
         ),
-        h('div', { className: 'dsr-side-scroll', ref: scrollRef },
+        h('div', { className: 'dsr-side-scroll', ref: scrollRef, onScroll: scrollFollowingRef.current.onScroll, onWheel: scrollFollowingRef.current.onWheel },
           messages.length === 0
             ? h('div', { className: 'dsr-empty-chat' },
               h('div', { className: 'dsr-empty-chat-icon' }, h(Icon, { name: 'spark', size: 20 })),
@@ -3169,7 +3275,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             onToast: onCopy,
           }),
           item.text !== ''
-            ? h('div', { className: 'dsr-trans-result' }, item.text)
+            ? h('div', { className: 'dsr-trans-result' }, h(Markdown, { text: item.text }))
             : null,
           item.status === 'streaming' ? h('div', { className: 'dsr-trans-status' }, h(Spinner, null), t('translating')) : null,
           item.status === 'error' ? h('div', { className: 'dsr-error-box' }, item.error || t('translationFailed')) : null,
@@ -4056,8 +4162,9 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             source: 'original',
           })
         }
+        const unbindWords = bindEnglishWordSelection(scrollRef.current)
         document.addEventListener('selectionchange', onChange)
-        return () => document.removeEventListener('selectionchange', onChange)
+        return () => { unbindWords(); document.removeEventListener('selectionchange', onChange) }
       }, [pageCount])
 
       const readingPage = Math.min(Math.max(pageNumber, 1), Math.max(pageCount, 1))
@@ -4593,8 +4700,9 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             source: 'original',
           })
         }
+        const unbindWords = bindEnglishWordSelection(layer)
         document.addEventListener('selectionchange', onChange)
-        return () => document.removeEventListener('selectionchange', onChange)
+        return () => { unbindWords(); document.removeEventListener('selectionchange', onChange) }
       }, [status, pageNumber, pageCount, mode])
 
       const goPage = next => {
