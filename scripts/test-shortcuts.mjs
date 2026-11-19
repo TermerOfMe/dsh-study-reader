@@ -14,6 +14,66 @@ const keyboardCommand = vm.runInNewContext(`(${definitions[0][0]})`, Object.crea
 })
 assert.equal(typeof keyboardCommand, 'function')
 
+test('Ctrl+wheel cancels browser zoom and dispatches reader zoom; cleanup removes listener', () => {
+  const definition = source.match(/^([ \t]*)function bindReaderWheel\(root, dispatch\) \{[\s\S]*?^\1\}/m)
+  assert.ok(definition)
+  const bind = vm.runInNewContext(`(${definition[0]})`)
+  let handler
+  const root = {
+    addEventListener(name, listener, options) {
+      assert.equal(name, 'wheel')
+      assert.equal(options.passive, false)
+      handler = listener
+    },
+    removeEventListener(name, listener) {
+      assert.equal(name, 'wheel')
+      assert.equal(listener, handler)
+      handler = null
+    },
+  }
+  const calls = []
+  const unbind = bind(root, command => calls.push(command))
+  const send = overrides => handler({
+    ctrlKey: true, cancelable: true, deltaY: -120,
+    preventDefault: () => calls.push('prevent'), ...overrides,
+  })
+  send({})
+  send({ deltaY: 120 })
+  assert.deepEqual(calls, ['prevent', 'zoom-in', 'prevent', 'zoom-out'])
+  calls.length = 0
+  for (const overrides of [
+    { ctrlKey: false }, { altKey: true }, { metaKey: true }, { shiftKey: true },
+    { deltaY: 0 }, { deltaY: NaN }, { defaultPrevented: true }, { cancelable: false },
+  ]) send(overrides)
+  assert.deepEqual(calls, [])
+  unbind()
+  assert.equal(handler, null)
+})
+
+test('explain keeps the selection while busy and submits its context when idle', () => {
+  const definition = source.match(/const explainSelection = useCallback\(\(\) => \{([\s\S]*?)\n      \}, \[busy, doc, lang, selection, sendQuestion, showToast, t\]\)/)
+  assert.ok(definition, 'extract the actual explain callback')
+  const selection = { text: 'selected passage', blockId: 4, page: 1, pdfPage: 2, crop: { x: 0.1 } }
+  for (const busy of [true, false]) {
+    const calls = []
+    const context = {
+      busy, doc: {}, lang: 'en', selection,
+      showToast: message => calls.push(['toast', message]),
+      t: key => key,
+      setSelection: value => calls.push(['selection', value]),
+      sendQuestion: (question, quote) => calls.push(['question', question, quote]),
+    }
+    vm.runInNewContext(`(() => {${definition[1]}\n})()`, context)
+    if (busy) assert.deepEqual(calls, [['toast', 'explainBusy']])
+    else {
+      assert.deepEqual(calls[0], ['selection', null])
+      assert.equal(calls[1][0], 'question')
+      assert.match(calls[1][1], /explain/)
+      assert.deepEqual(JSON.parse(JSON.stringify(calls[1][2])), selection)
+    }
+  }
+})
+
 const event = (key, extra = {}) => Object.freeze({
   key, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false,
   defaultPrevented: false, isComposing: false, keyCode: 0, ...extra,
@@ -63,17 +123,17 @@ test('G and zoom controls are restricted to the reader', () => {
   }
 })
 
-test('page actions map F/O/Q/X/T/E/R to accepted commands', () => {
+test('page actions map F/O/Q/X/C/T/E/R to accepted commands', () => {
   expectKeys('page', [
     ['f', 'search'], ['o', 'toc'], ['q', 'ask'], ['x', 'new-chat'],
-    ['t', 'translate'], ['e', 'highlight'], ['r', 'note'],
+    ['t', 'translate'], ['c', 'explain'], ['e', 'highlight'], ['r', 'note'],
   ])
-  expectKeys('reader', ['f', 'o', 'q', 'x', 't', 'e', 'r'].map(key => [key, null]))
+  expectKeys('reader', ['f', 'o', 'q', 'x', 'c', 't', 'e', 'r'].map(key => [key, null]))
 })
 
 test('F inside search edits the query rather than reopening search', () => {
   assert.equal(command('f', 'search'), 'search-input')
-  expectKeys('search', ['o', 'q', 'x', 't', 'e', 'r', 'g'].map(key => [key, null]))
+  expectKeys('search', ['o', 'q', 'x', 'c', 't', 'e', 'r', 'g'].map(key => [key, null]))
 })
 
 test('search Enter and Shift+Enter move next and previous', () => {
@@ -88,7 +148,7 @@ test('search Enter and Shift+Enter move next and previous', () => {
 test('uppercase keys without Shift preserve all letter aliases and actions', () => {
   expectKeys('reader', [['W', 'scroll-up'], ['A', 'previous-page'], ['S', 'scroll-down'], ['D', 'next-page'], ['G', 'page-number']])
   expectKeys('search', [['W', 'previous-result'], ['A', 'previous-result'], ['S', 'next-result'], ['D', 'next-result'], ['F', 'search-input']])
-  expectKeys('page', [['F', 'search'], ['O', 'toc'], ['Q', 'ask'], ['X', 'new-chat'], ['T', 'translate'], ['E', 'highlight'], ['R', 'note']])
+  expectKeys('page', [['F', 'search'], ['O', 'toc'], ['Q', 'ask'], ['X', 'new-chat'], ['T', 'translate'], ['C', 'explain'], ['E', 'highlight'], ['R', 'note']])
   expectKeys('reader', [['A', 'back'], ['D', 'forward']], { altKey: true })
 })
 
@@ -99,7 +159,7 @@ test('IME, nativeEvent composition, keyCode229 and handled events suppress every
     { keyCode: 229 },
     { defaultPrevented: true },
   ]
-  const keys = ['w', 'a', 's', 'd', 'g', '+', '-', 'f', 'o', 'q', 'x', 't', 'e', 'r', 'Enter', 'ArrowLeft']
+  const keys = ['w', 'a', 's', 'd', 'g', '+', '-', 'f', 'o', 'q', 'x', 'c', 't', 'e', 'r', 'Enter', 'ArrowLeft']
   for (const scope of scopes) for (const guard of guards) for (const key of keys) {
     assert.equal(command(key, scope, guard), null, `${scope}: ${key} ${JSON.stringify(guard)}`)
     assert.equal(command(key, scope, { ...guard, altKey: true }), null)
@@ -109,7 +169,7 @@ test('IME, nativeEvent composition, keyCode229 and handled events suppress every
 
 test('Ctrl and Meta combinations never dispatch reader shortcuts', () => {
   for (const scope of scopes) for (const modifier of ['ctrlKey', 'metaKey']) {
-    for (const key of ['w', 'a', 's', 'd', 'g', '+', '-', 'f', 'o', 'q', 'x', 't', 'e', 'r', 'Enter', 'ArrowLeft']) {
+    for (const key of ['w', 'a', 's', 'd', 'g', '+', '-', 'f', 'o', 'q', 'x', 'c', 't', 'e', 'r', 'Enter', 'ArrowLeft']) {
       for (const extra of [{}, { altKey: true }, { shiftKey: true }]) {
         assert.equal(command(key, scope, { ...extra, [modifier]: true }), null, `${scope}: ${modifier} ${key}`)
       }
@@ -119,14 +179,14 @@ test('Ctrl and Meta combinations never dispatch reader shortcuts', () => {
 
 test('unsupported Alt combinations and Alt+Shift are ignored', () => {
   for (const scope of scopes) {
-    expectKeys(scope, ['w', 's', 'ArrowUp', 'ArrowDown', 'g', '+', '-', 'f', 'o', 'q', 'x', 't', 'e', 'r', 'Enter'].map(key => [key, null]), { altKey: true })
+    expectKeys(scope, ['w', 's', 'ArrowUp', 'ArrowDown', 'g', '+', '-', 'f', 'o', 'q', 'x', 'c', 't', 'e', 'r', 'Enter'].map(key => [key, null]), { altKey: true })
     expectKeys(scope, ['a', 'd', 'ArrowLeft', 'ArrowRight', '+', 'Enter'].map(key => [key, null]), { altKey: true, shiftKey: true })
   }
 })
 
 test('unsupported Shift combinations are ignored, including shifted equals/minus', () => {
   for (const scope of scopes) {
-    expectKeys(scope, ['w', 'a', 's', 'd', 'g', 'f', 'o', 'q', 'x', 't', 'e', 'r', 'W', 'F', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '=', '-', '_'].map(key => [key, null]), { shiftKey: true })
+    expectKeys(scope, ['w', 'a', 's', 'd', 'g', 'f', 'o', 'q', 'x', 'c', 't', 'e', 'r', 'W', 'F', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '=', '-', '_'].map(key => [key, null]), { shiftKey: true })
   }
 })
 

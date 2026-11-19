@@ -49,6 +49,21 @@ test('provider error finish preserves provider failure code and partial output',
   await assert.rejects(request,error => error.code === 'RATE_LIMIT' && error.partialText === 'partial' && error.finishReason === 'error')
 })
 
+test('rc.5 CONTENT_REFUSED explains provider refusal and preserves partial output without retry', async () => {
+  const {request,deltas,audits} = await run([
+    {type:'text-delta',text:'partial'},
+    {type:'finish',reason:{kind:'error',failure:{code:'CONTENT_REFUSED',message:'Content refused by provider'}}},
+  ], {retryOnEmpty:true})
+  await assert.rejects(request,error => error.code === 'CONTENT_REFUSED'
+    && error.message.includes('模型供应商拒绝了本次请求')
+    && error.partialText === 'partial' && error.finishReason === 'error')
+  assert.equal(deltas.join(''),'partial')
+  assert.equal(audits.length,1)
+  assert.equal(audits[0].status,'error')
+  assert.equal(audits[0].finishReason,'error')
+  assert.match(audits[0].error,/CONTENT_REFUSED/)
+})
+
 test('thrown transport errors retain their stable code and partial content', async () => {
   const {request} = await run([{type:'text-delta',text:'partial'},Object.assign(new Error('socket closed'),{code:'ECONNRESET'})])
   await assert.rejects(request,error => error.code === 'ECONNRESET' && error.partialText === 'partial' && error.partial === true)

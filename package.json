@@ -1,13 +1,13 @@
 {
   "name": "study-reader",
-  "version": "1.17.6",
+  "version": "1.17.11",
   "type": "module",
   "license": "MIT",
   "description": "Read PDF, Word and PowerPoint documents in their original layout inside DSH; select text for context-aware translation, or discuss it in Learning and Re-reading modes.",
   "scripts": {
     "check": "node scripts/check.mjs",
     "version:check": "node scripts/check.mjs",
-    "test": "node scripts/test-rendering-regressions.mjs && node scripts/test-answer-scroll.mjs && node scripts/test-word-selection.mjs && node scripts/test-client-stream.mjs && node scripts/test-stream-terminals.mjs && node scripts/test-conversations.mjs && node scripts/test-new-chat.mjs && node scripts/test-reading-position.mjs && node scripts/test-reading-position-store.mjs && node scripts/test-math.mjs && node scripts/test-partial-images.mjs && node scripts/test-search-position.mjs && node scripts/test-shortcuts.mjs && node scripts/test-annotations.mjs && node scripts/test-annotation-tool.mjs && node scripts/test-evidence.mjs && node scripts/test-context.mjs && node scripts/test-reading.mjs && node scripts/smoke-context.mjs && node scripts/smoke-host.mjs"
+    "test": "node scripts/test-key-scroll.mjs && node scripts/test-client-titles.mjs && node scripts/test-conversation-title.mjs && node scripts/test-rendering-regressions.mjs && node scripts/test-answer-scroll.mjs && node scripts/test-word-selection.mjs && node scripts/test-client-stream.mjs && node scripts/test-stream-terminals.mjs && node scripts/test-conversations.mjs && node scripts/test-new-chat.mjs && node scripts/test-reading-position.mjs && node scripts/test-reading-position-store.mjs && node scripts/test-math.mjs && node scripts/test-partial-images.mjs && node scripts/test-search-position.mjs && node scripts/test-shortcuts.mjs && node scripts/test-annotations.mjs && node scripts/test-annotation-tool.mjs && node scripts/test-evidence.mjs && node scripts/test-context.mjs && node scripts/test-reading.mjs && node scripts/smoke-context.mjs && node scripts/smoke-host.mjs"
   },
   "exports": {
     ".": "./index.js",
@@ -48,7 +48,7 @@
   },
   "engines": {
     "node": ">=22.13.0",
-    "dsh": "0.2.2-rc.1 || 0.2.2-rc.3"
+    "dsh": "0.2.2-rc.1 || 0.2.2-rc.3 || 0.2.2-rc.5"
   },
   "repository": {
     "type": "git",

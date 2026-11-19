@@ -140,6 +140,7 @@ globalThis.__ModuleLoader__.load({
         chatTitle: '旁注问答',
         chatSub: '基于当前阅读位置回答',
         newChat: '新对话',
+        titleGenerating: '正在总结对话标题…', titleFailed: '标题总结失败，已保留原标题', titleRetry: '重试总结标题',
         conversations: '历史对话', deleteConversation: '删除对话', deleteConversationConfirm: '删除这段对话？此操作无法撤销。',
         unnamedConversation: '新对话', branchConversation: '分支', forkHere: '从此处分支', editQuestion: '编辑问题',
         editResend: '编辑并重新提问', editFork: '编辑并创建分支', editHint: '重新提问会替换此问题之后的内容；创建分支会保留原对话。',
@@ -249,6 +250,7 @@ globalThis.__ModuleLoader__.load({
         selectionTranslate: '翻译',
         selectionAsk: '追问',
         selectionExplain: '解释',
+        explainBusy: '正在生成回答，请等待完成或停止后再解释。',
         quoteRegion: '框选区域',
         selectionTooLong: '选中的内容太长，已截取前 8000 个字符。',
         pageOf: '{current} / {total}',
@@ -282,7 +284,7 @@ globalThis.__ModuleLoader__.load({
         pdfSelectionHint: '直接拖选文字；按住 Ctrl（Mac 为 ⌘）拖动可框选页面区域，作为截图引用。',
         originalNewTab: '新标签页打开原文件',
         annotations: '书签与批注', bookmark: '添加书签', highlight: '高亮', addNote: '批注', editNote: '编辑批注', saveNote: '保存', deleteNote: '删除', noteText: '笔记', noteTags: '标签（逗号分隔）', noteFilter: '搜索原文、笔记或标签', notesEmpty: '还没有书签或批注。选中文字或框选区域即可添加。', notesSaved: '已保存到本机', notesFailed: '批注操作失败', noteDeleteConfirm: '删除这条书签或批注？', annotationType: '类型', allNotes: '全部', noQuote: '页面书签', pageBookmark: '本页书签', onePageOnly: '请在同一页内选择要高亮的文字。', evidenceTitle: '引用依据', evidenceHint: '以下是引用位置的原文，需结合上下文核对回答；定位成功不代表结论已被自动验证。', evidenceNoText: '此位置没有可提取文字，请核对页面图片。', evidenceTruncated: '预览已截取，请打开原文阅读完整上下文。', evidenceNoMapping: '这条引用对应原文文字单元，暂无法准确映射到转换后的 PDF 页。', evidenceJump: '跳到原文', evidenceFailed: '无法定位这条引用', evidenceImageFailed: '页面图片加载失败，可跳到原文查看。', noteLoading: '正在读取批注…',
-        zoomWidth: '适合页宽', zoomPage: '适合整页', zoomLabel: '缩放', navBack: '返回阅读位置（Alt+←）', navForward: '前进（Alt+→）',
+        zoomWidth: '适合页宽', zoomPage: '适合整页', zoomLabel: '缩放', zoomWheelIn: 'Ctrl+滚轮向上', zoomWheelOut: 'Ctrl+滚轮向下', navBack: '返回阅读位置（Alt+←）', navForward: '前进（Alt+→）',
         pdfPageOf: '第 {current} / {total} 页',
         pdfPageLabel: '第 {n} 页',
         pdfPages: '{n} 页',
@@ -387,6 +389,7 @@ globalThis.__ModuleLoader__.load({
         chatTitle: 'Margin Q&A',
         chatSub: 'Answers follow your reading position',
         newChat: 'New thread',
+        titleGenerating: 'Summarizing conversation titles…', titleFailed: 'Title summary failed; original title kept', titleRetry: 'Retry title summaries',
         conversations: 'Conversations', deleteConversation: 'Delete conversation', deleteConversationConfirm: 'Delete this conversation? This cannot be undone.',
         unnamedConversation: 'New thread', branchConversation: 'Branch', forkHere: 'Branch from here', editQuestion: 'Edit question',
         editResend: 'Edit and ask again', editFork: 'Edit in a new branch', editHint: 'Asking again replaces the later messages. A branch keeps the original conversation.',
@@ -496,6 +499,7 @@ globalThis.__ModuleLoader__.load({
         selectionTranslate: 'Translate',
         selectionAsk: 'Ask',
         selectionExplain: 'Explain',
+        explainBusy: 'An answer is being generated. Wait for it to finish or stop it before explaining.',
         quoteRegion: 'Selected region',
         selectionTooLong: 'The selection is long; only the first 8,000 characters were used.',
         pageOf: '{current} / {total}',
@@ -529,7 +533,7 @@ globalThis.__ModuleLoader__.load({
         pdfSelectionHint: 'Drag to select text; hold Ctrl (⌘ on Mac) and drag to quote a page region as an image.',
         originalNewTab: 'Open original in a new tab',
         annotations: 'Bookmarks & notes', bookmark: 'Add bookmark', highlight: 'Highlight', addNote: 'Add note', editNote: 'Edit annotation', saveNote: 'Save', deleteNote: 'Delete', noteText: 'Note', noteTags: 'Tags (comma separated)', noteFilter: 'Search quote, note or tags', notesEmpty: 'No bookmarks or annotations yet. Select text or a region to add one.', notesSaved: 'Saved on this computer', notesFailed: 'Annotation operation failed', noteDeleteConfirm: 'Delete this bookmark or annotation?', annotationType: 'Type', allNotes: 'All', noQuote: 'Page bookmark', pageBookmark: 'Bookmark this page', onePageOnly: 'Select text within one page to highlight.', evidenceTitle: 'Source evidence', evidenceHint: 'Check the cited source and its context. Locating a source does not automatically verify the answer.', evidenceNoText: 'No extractable text here. Check the page image.', evidenceTruncated: 'Preview is shortened. Open the source for full context.', evidenceNoMapping: 'This source text unit has no exact page mapping in the converted PDF.', evidenceJump: 'Go to source', evidenceFailed: 'Cannot locate this reference', evidenceImageFailed: 'Page image unavailable. Open the source page to check.', noteLoading: 'Loading annotations…',
-        zoomWidth: 'Fit width', zoomPage: 'Fit page', zoomLabel: 'Zoom', navBack: 'Reading back (Alt+Left)', navForward: 'Reading forward (Alt+Right)',
+        zoomWidth: 'Fit width', zoomPage: 'Fit page', zoomLabel: 'Zoom', zoomWheelIn: 'Ctrl+Wheel up', zoomWheelOut: 'Ctrl+Wheel down', navBack: 'Reading back (Alt+Left)', navForward: 'Reading forward (Alt+Right)',
         pdfPageOf: 'Page {current} / {total}',
         pdfPageLabel: 'Page {n}',
         pdfPages: '{n} pages',
@@ -1031,7 +1035,89 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       if (literal === '-' && !event.shiftKey) return scope === 'reader' ? 'zoom-out' : null
       if (event.shiftKey) return null
       if (scope === 'reader') return ({ arrowleft: 'previous-page', arrowright: 'next-page', arrowup: 'scroll-up', arrowdown: 'scroll-down', g: 'page-number' })[key] ?? null
-      return ({ f: 'search', o: 'toc', q: 'ask', x: 'new-chat', t: 'translate', e: 'highlight', r: 'note' })[literal] ?? null
+      return ({ f: 'search', o: 'toc', q: 'ask', x: 'new-chat', c: 'explain', t: 'translate', e: 'highlight', r: 'note' })[literal] ?? null
+    }
+
+    function bindReaderWheel(root, dispatch) {
+      const onWheel = event => {
+        if (event.defaultPrevented || !event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || !event.cancelable || !Number.isFinite(event.deltaY) || event.deltaY === 0) return
+        // Cancel browser zoom even at the reader's minimum/maximum zoom.
+        event.preventDefault()
+        dispatch(event.deltaY < 0 ? 'zoom-in' : 'zoom-out')
+      }
+      root.addEventListener('wheel', onWheel, { passive: false })
+      return () => root.removeEventListener('wheel', onWheel)
+    }
+
+    function createReaderKeyScroll(root, environment = window) {
+      const document = environment.document
+      const held = new Map()
+      let frame = null
+      let previous = 0
+      let velocity = 0
+      const stop = () => {
+        held.clear()
+        if (frame !== null) environment.cancelAnimationFrame(frame)
+        frame = null
+        velocity = 0
+        previous = 0
+      }
+      const eligible = () => {
+        const owner = root.closest('.dsr-root')
+        const active = document.activeElement
+        return root.isConnected && root.getClientRects().length > 0 && !document.hidden && owner &&
+          !owner.querySelector('[role="dialog"]') &&
+          (active === owner || (active?.closest?.('.dsr-original') === root.closest('.dsr-original') && !isKeyboardInput(active)))
+      }
+      const tick = now => {
+        frame = null
+        if (!held.size || !eligible()) { stop(); return }
+        // Time-based motion is independent of OS key-repeat delay and rate.
+        // Bound a late frame so a stalled/background tab cannot jump a page.
+        const dt = Math.min(32, Math.max(0, now - previous))
+        previous = now
+        const direction = [...held.values()].at(-1)
+        velocity += (direction * 900 - velocity) * (1 - Math.exp(-dt / 55))
+        root.scrollBy({ top: velocity * dt / 1000, behavior: 'instant' })
+        frame = environment.requestAnimationFrame(tick)
+      }
+      const start = (key, direction, repeat = false) => {
+        if (repeat || held.has(key) || !eligible()) return
+        const oldDirection = [...held.values()].at(-1)
+        held.set(key, direction)
+        if (oldDirection && oldDirection !== direction) velocity = 0
+        if (frame === null) {
+          // A quick tap still moves even if keyup arrives before the first frame.
+          root.scrollBy({ top: direction * 16, behavior: 'instant' })
+          previous = environment.performance.now()
+          frame = environment.requestAnimationFrame(tick)
+        }
+      }
+      const release = event => {
+        const direction = [...held.values()].at(-1)
+        if (!held.delete(event.code || event.key)) return
+        if (!held.size) stop()
+        else if ([...held.values()].at(-1) !== direction) velocity = 0
+      }
+      const modifiers = event => { if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) stop() }
+      const focus = () => { if (!eligible()) stop() }
+      environment.addEventListener('keyup', release, true)
+      environment.addEventListener('keydown', modifiers, true)
+      environment.addEventListener('blur', stop)
+      document.addEventListener('visibilitychange', stop)
+      document.addEventListener('focusin', focus)
+      document.addEventListener('pointerdown', stop, true)
+      document.addEventListener('wheel', stop, { capture: true, passive: true })
+      return { start, stop, destroy() {
+        stop()
+        environment.removeEventListener('keyup', release, true)
+        environment.removeEventListener('keydown', modifiers, true)
+        environment.removeEventListener('blur', stop)
+        document.removeEventListener('visibilitychange', stop)
+        document.removeEventListener('focusin', focus)
+        document.removeEventListener('pointerdown', stop, true)
+        document.removeEventListener('wheel', stop, true)
+      } }
     }
 
     function isKeyboardInput(target) {
@@ -1762,6 +1848,19 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
     }
     function conversationTitle(messages, fallback) {
       return messages.find(message => message.role === 'user')?.text?.replace(/\s+/g, ' ').trim().slice(0, 60) || fallback
+    }
+    function conversationTitleBasis(messages) {
+      if (!Array.isArray(messages) || messages.some(message => message.pending)) return ''
+      const answer = [...messages].reverse().find(message => message.role === 'assistant' && !message.error && !message.aborted && message.text?.trim())
+      return answer?.id || ''
+    }
+    function conversationTitleMessages(messages) {
+      const settled = messages.filter(message => ['user', 'assistant'].includes(message.role) && !message.pending && !message.error && !message.aborted)
+      const selected = settled.length > 8 ? [...settled.slice(0, 2), ...settled.slice(-6)] : settled
+      return selected.map(message => ({ role: message.role, text: String(message.text || '').slice(0, 2500), quote: String(message.quote || '').slice(0, 1500) }))
+    }
+    function savedConversationTitle(conversation, messages, fallback) {
+      return conversation.titleSource === 'model' || conversation.parentId ? conversation.title : conversationTitle(messages, fallback)
     }
     function newConversation(t, values = {}) {
       return { id: uid(), title: t('unnamedConversation'), messages: [], draft: '', quote: null,
@@ -3350,7 +3449,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       doc, t, mode, setMode, panelTab, setPanelTab, messages, busy, onSend, onStop,
       quote, onClearQuote, onClearChat, onAhead, onReadPage, translations, targetLanguage, setTargetLanguage,
       onClearTranslations, onTranslateAgain, onToast, onClose, modelAvailable, positionLabel, chatOpen, draft, setDraft,
-      conversations, activeConversationId, onSwitchConversation, onDeleteConversation, models, modelSelection, onModelChange, onRefreshModels, modelError, saveError, onRetrySave, onEdit, onFork,
+      conversations, activeConversationId, onSwitchConversation, onDeleteConversation, models, modelSelection, onModelChange, onRefreshModels, modelError, saveError, onRetrySave, onEdit, onFork, titleStatus, titleError, onRetryTitles,
     }) {
       const [historyOpen, setHistoryOpen] = useState(false)
       const historyAreaRef = useRef(null)
@@ -3404,6 +3503,9 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             onClick: () => setHistoryOpen(value => !value),
           }, t('conversations'), h('span', { className: 'dsr-count' }, conversations.length), h(Icon, { name: 'down', size: 11 })),
           historyOpen ? h('div', { id: 'dsr-history-popover', className: 'dsr-history-popover', role: 'dialog', 'aria-label': t('conversations') },
+            titleStatus ? h('div', { className: 'dsr-side-notice', role: 'status' }, titleStatus) : null,
+            titleError ? h('div', { className: 'dsr-side-notice', role: 'status' }, titleError,
+              h('button', { type: 'button', className: 'dsr-mini-btn', onClick: onRetryTitles }, t('titleRetry'))) : null,
             h('div', { className: 'dsr-history-list' }, conversations.map(item => h('div', { key: item.id, className: 'dsr-history-row', 'aria-current': item.id === activeConversationId },
               h('button', { type: 'button', className: 'dsr-mini-btn', title: item.title, onClick: () => { onSwitchConversation(item.id); setHistoryOpen(false); historyTriggerRef.current?.focus({ preventScroll: true }) } }, item.title),
               h('button', { type: 'button', className: 'dsr-mini-btn', 'aria-label': t('deleteConversation') + ': ' + item.title, title: t('deleteConversation'), onClick: () => onDeleteConversation(item.id) }, h(Icon, { name: 'trash', size: 12 })))))) : null),
@@ -3741,7 +3843,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         h('span', { className: 'dsr-selection-sep', 'aria-hidden': true }),
         h('button', { type: 'button', className: 'dsr-selection-btn', title: t('selectionAsk') + ' (Q)', onMouseDown: keepSelection, onClick: onAsk },
           h(Icon, { name: 'chat', size: 13 }), t('selectionAsk')),
-        h('button', { type: 'button', className: 'dsr-selection-btn', onMouseDown: keepSelection, onClick: onExplain },
+        h('button', { type: 'button', className: 'dsr-selection-btn', title: t('selectionExplain') + ' (C)', onMouseDown: keepSelection, onClick: onExplain },
           h(Icon, { name: 'spark', size: 13 }), t('selectionExplain'))
       )
     }
@@ -4231,6 +4333,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const [mode, setMode] = useState(() => readStore('originalMode', 'single') === 'continuous' ? 'continuous' : 'single')
       const stageRef = useRef(null)
       const scrollRef = useRef(null)
+      const keyScrollRef = useRef(null)
       const canvasRef = useRef(null)
       const textLayerRef = useRef(null)
       const renderTaskRef = useRef(null)
@@ -4737,8 +4840,20 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       }
 
       useEffect(() => {
-        const control = command => {
+        const root = scrollRef.current
+        if (status !== 'ready' || !root) return undefined
+        const scroller = createReaderKeyScroll(root)
+        keyScrollRef.current = scroller
+        return () => {
+          scroller.destroy()
+          if (keyScrollRef.current === scroller) keyScrollRef.current = null
+        }
+      }, [status, doc.id, mode])
+
+      useEffect(() => {
+        const control = (command, event) => {
           if (status !== 'ready') return false
+          if (command !== 'scroll-up' && command !== 'scroll-down') keyScrollRef.current?.stop()
           const root = scrollRef.current
           if (!root) return false
           if (command === 'flush-position') {
@@ -4748,7 +4863,9 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
             }
             positionWriterRef.current?.flush()
           } else if (command === 'previous-page' || command === 'next-page') goPage(pageNumber + (command === 'next-page' ? 1 : -1))
-          else if (command === 'scroll-up' || command === 'scroll-down') root.scrollBy({ top: command === 'scroll-down' ? 80 : -80, behavior: 'auto' })
+          else if (command === 'scroll-up' || command === 'scroll-down') {
+            if (event) keyScrollRef.current?.start(event.code || event.key, command === 'scroll-down' ? 1 : -1, event.repeat)
+          }
           else if (command === 'back' || command === 'forward') travel(command)
           else if (command === 'page-number') {
             const input = root.closest('.dsr-original')?.querySelector('.dsr-pdf-page-input')
@@ -4760,6 +4877,12 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         controlsRef.current = control
         return () => { if (controlsRef.current === control) controlsRef.current = null }
       })
+
+      useEffect(() => {
+        const root = scrollRef.current
+        if (status !== 'ready' || !root) return undefined
+        return bindReaderWheel(root, command => controlsRef.current?.(command))
+      }, [status, controlsRef])
 
       const fallbackUrl = `${APP_BASE}/preview?id=${encodeURIComponent(doc.id)}`
       return h('div', { className: 'dsr-original' },
@@ -4775,11 +4898,11 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
           h('div', { className: 'dsr-zoom', role: 'group', 'aria-label': t('zoomLabel') },
             h('button', { type: 'button', className: 'dsr-icon-btn', title: t('navBack') + ' (Alt+← / Alt+A)', 'aria-label': t('navBack'), disabled: !historyRef.current.back.length, onClick: () => travel('back') }, '↶'),
             h('button', { type: 'button', className: 'dsr-icon-btn', title: t('navForward') + ' (Alt+→ / Alt+D)', 'aria-label': t('navForward'), disabled: !historyRef.current.forward.length, onClick: () => travel('forward') }, '↷'),
-            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' −', title: t('zoomLabel') + ' (−)', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.max(25, Math.round(width / naturalSize.width * 100) - 25) }) }, '−'),
+            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' −', title: t('zoomLabel') + ' (− / ' + t('zoomWheelOut') + ')', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.max(25, Math.round(width / naturalSize.width * 100) - 25) }) }, '−'),
             h('select', { className: 'dsr-select', value: zoom.mode === 'custom' ? String(zoom.percent) : zoom.mode, 'aria-label': t('zoomLabel'), disabled: status !== 'ready', onChange: event => changeZoom(['width','page'].includes(event.target.value) ? { mode: event.target.value, percent: zoom.percent } : { mode: 'custom', percent: Number(event.target.value) }) },
               h('option', { value: 'width' }, t('zoomWidth')), h('option', { value: 'page' }, t('zoomPage')),
               [...new Set([25,50,75,100,125,150,175,200,250,300,zoom.percent])].sort((a,b)=>a-b).map(value => h('option', { key: value, value: String(value) }, value + '%'))),
-            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' +', title: t('zoomLabel') + ' (+)', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.min(300, Math.round(width / naturalSize.width * 100) + 25) }) }, '+')
+            h('button', { type: 'button', className: 'dsr-icon-btn', 'aria-label': t('zoomLabel') + ' +', title: t('zoomLabel') + ' (+ / ' + t('zoomWheelIn') + ')', disabled: status !== 'ready', onClick: () => changeZoom({ mode: 'custom', percent: Math.min(300, Math.round(width / naturalSize.width * 100) + 25) }) }, '+')
           ),
           h('div', { className: 'dsr-pdf-mode', role: 'group', 'aria-label': t('pageMode') },
             h('button', {
@@ -5057,6 +5180,11 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
       const dirtyConversationsRef = useRef(new Map())
       const liveChatRef = useRef(null)
       const modelLoadRef = useRef(null)
+      const titleRequestRef = useRef(null)
+      const titleAttemptsRef = useRef(new Set())
+      const [titleRevision, setTitleRevision] = useState(0)
+      const [titleStatus, setTitleStatus] = useState('')
+      const [titleError, setTitleError] = useState('')
       const [busy, setBusy] = useState(false)
       const [pendingQuote, setPendingQuote] = useState(null)
       const [translations, setTranslations] = useState([])
@@ -5164,7 +5292,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         if (!previous) return null
         const next = { ...previous, ...live, id: previous.id,
           messages: settle ? settledMessages(live.messages) : live.messages, updatedAt: Date.now(),
-          title: previous.parentId ? previous.title : conversationTitle(live.messages, t('unnamedConversation')) }
+          title: savedConversationTitle(previous, live.messages, t('unnamedConversation')) }
         delete next.activeId
         commitConversation(next, library)
         return next
@@ -5382,16 +5510,79 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         const previous = library.conversations.find(item => item.id === activeConversationId)
         if (!previous) return undefined
         const next = { ...previous, messages, draft: questionDraft, quote: pendingQuote, modelSelection, mode,
-          title: previous.parentId ? previous.title : conversationTitle(messages, t('unnamedConversation')), updatedAt: Date.now() }
+          title: savedConversationTitle(previous, messages, t('unnamedConversation')), updatedAt: Date.now() }
         library.conversations = library.conversations.map(item => item.id === next.id ? next : item)
         library.pendingIds.add(next.id)
         writeStore('conversations:' + library.path, conversationBackup(library))
         const timer = window.setTimeout(() => {
           chatSaveAtRef.current = Date.now()
-          commitConversation(next, library)
+          // A title request may finish while this autosave timer is waiting.
+          const current = library.conversations.find(item => item.id === next.id)
+          if (!current) return
+          commitConversation({ ...next, title: current.title, ...(current.titleSource ? { titleSource: current.titleSource, titleBasis: current.titleBasis } : {}) }, library)
         }, Math.max(0, 1000 - (Date.now() - chatSaveAtRef.current)))
         return () => window.clearTimeout(timer)
       }, [doc?.id, messages, questionDraft, pendingQuote, modelSelection, mode, activeConversationId, commitConversation, t])
+      // Summarize one conversation at a time, only between answer/translation requests.
+      // Existing records are upgraded lazily for the currently opened document.
+      useEffect(() => {
+        const library = libraryRef.current
+        if (!doc || openingPath || busy || translationBusy || !library || library.path !== doc.path || titleRequestRef.current) return undefined
+        const ordered = [...library.conversations].sort((a, b) => Number(b.id === library.activeId) - Number(a.id === library.activeId))
+        const candidate = ordered.find(item => {
+          const basis = conversationTitleBasis(item.messages)
+          return basis && !(item.titleSource === 'model' && item.titleBasis === basis) && !titleAttemptsRef.current.has(library.path + '\0' + item.id + '\0' + basis)
+        })
+        if (!candidate) { setTitleStatus(''); return undefined }
+        const basis = conversationTitleBasis(candidate.messages)
+        const key = library.path + '\0' + candidate.id + '\0' + basis
+        const timer = window.setTimeout(() => {
+          const controller = new AbortController()
+          titleRequestRef.current = controller
+          titleAttemptsRef.current.add(key)
+          setTitleStatus(t('titleGenerating'))
+          void (async () => {
+            try {
+              const response = await apiPost('/conversation-title', {
+                docId: library.docId, messages: conversationTitleMessages(candidate.messages),
+                modelSelection: candidate.modelSelection, language: lang,
+              }, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]) })
+              const body = await response.json()
+              if (body.ok !== true || typeof body.title !== 'string' || !body.title.trim()) throw new Error(body.error?.message || t('titleFailed'))
+              const current = library.conversations.find(item => item.id === candidate.id)
+              // Never resurrect a deleted record, overwrite a newer conversation,
+              // or apply a response after switching documents or unmounting.
+              if (controller.signal.aborted || libraryRef.current !== library || !current || conversationTitleBasis(current.messages) !== basis) return
+              commitConversation({ ...current, title: body.title.trim(), titleSource: 'model', titleBasis: basis }, library)
+            } catch (error) {
+              if (!controller.signal.aborted && libraryRef.current === library) setTitleError(t('titleFailed') + ': ' + error.message)
+            } finally {
+              if (controller.signal.aborted) titleAttemptsRef.current.delete(key)
+              if (titleRequestRef.current === controller) {
+                titleRequestRef.current = null
+                setTitleStatus('')
+                setTitleRevision(value => value + 1)
+              }
+            }
+          })()
+        }, 800)
+        return () => window.clearTimeout(timer)
+      }, [doc?.id, openingPath, conversations, busy, translationBusy, titleRevision, commitConversation, lang, t])
+      const retryTitles = useCallback(() => {
+        titleAttemptsRef.current.clear()
+        setTitleError('')
+        setTitleRevision(value => value + 1)
+      }, [])
+      useEffect(() => {
+        titleAttemptsRef.current.clear()
+        setTitleError('')
+        setTitleStatus('')
+        return () => {
+          titleRequestRef.current?.abort()
+          titleRequestRef.current = null
+        }
+      }, [doc?.id])
+
       useEffect(() => {
         const flush = () => saveCurrentConversation(true)
         window.addEventListener('pagehide', flush)
@@ -5751,6 +5942,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
 
       const explainSelection = useCallback(() => {
         if (selection === null || doc === null) return
+        if (busy) { showToast(t('explainBusy')); return }
         const quote = {
           text: selection.text,
           blockId: selection.blockId,
@@ -5762,7 +5954,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         void sendQuestion(lang === 'en'
           ? 'Please explain what this passage means in the context of the document.'
           : '请解释这段内容在上下文中的含义，以及它为什么重要。', quote)
-      }, [doc, lang, selection, sendQuestion])
+      }, [busy, doc, lang, selection, sendQuestion, showToast, t])
 
       const translateSelection = useCallback(async (target, selected = selection) => {
         if (doc === null || selected === null) return
@@ -6061,15 +6253,16 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
         const command = keyboardCommand(event, 'page') ?? (reading ? keyboardCommand(event, 'reader') : null)
         if (!command) return
         event.preventDefault(); event.stopPropagation()
-        if (['previous-page','next-page','scroll-up','scroll-down','zoom-in','zoom-out'].includes(command)) { readerControlsRef.current?.(command); return }
+        if (['previous-page','next-page','scroll-up','scroll-down','zoom-in','zoom-out'].includes(command)) { readerControlsRef.current?.(command, event); return }
         if (event.repeat) return
         if (command === 'search') { setSelection(null); setTocOpen(false); setSearchOpen(true) }
         else if (command === 'toc') { setSelection(null); setSearchOpen(false); setTocOpen(true) }
         else if (command === 'ask') askFromSelection()
         else if (command === 'new-chat') clearChat(true)
-        else if (command === 'translate' || command === 'highlight' || command === 'note') {
+        else if (command === 'translate' || command === 'explain' || command === 'highlight' || command === 'note') {
           if (!selection) { showToast(t('shortcutNeedsSelection')); return }
-          if (command === 'translate') void translateSelection(targetLanguage || boot?.defaults?.defaultTargetLanguage || 'zh-CN')
+          if (command === 'explain') explainSelection()
+          else if (command === 'translate') void translateSelection(targetLanguage || boot?.defaults?.defaultTargetLanguage || 'zh-CN')
           else annotationFromSelection(command === 'highlight' ? 'highlight' : 'note')
         } else readerControlsRef.current?.(command)
       }
@@ -6174,7 +6367,7 @@ h3.dsr-h{font-size:16.5px;margin:21px 0 9px}
               modelAvailable: modelSelection ? models.some(item => item.provider === modelSelection.provider && item.model === modelSelection.model) : boot?.modelAvailable !== false,
                conversations, activeConversationId, onSwitchConversation: switchConversation, onDeleteConversation: deleteConversation,
                models, modelSelection, onModelChange: setModelSelection, onRefreshModels: refreshModels, modelError,
-               saveError, onRetrySave: retrySave, onEdit: editQuestion, onFork: forkChat,
+               saveError, onRetrySave: retrySave, titleStatus, titleError, onRetryTitles: retryTitles, onEdit: editQuestion, onFork: forkChat,
               positionLabel: positionLabel || t('currentPosition'),
             })
             : null,
